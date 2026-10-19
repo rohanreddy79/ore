@@ -1,0 +1,29 @@
+{
+  "id": 1296269,
+  "node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+  "name": "app",
+  "full_name": "octo/app",
+  "private": false,
+  "owner": {
+    "login": "octo",
+    "id": 583231,
+    "node_id": "MDQ6VXNlcjU4MzIzMQ==",
+    "avatar_url": "https://avatars.githubusercontent.com/u/583231?v=4",
+    "html_url": "https://github.com/octo",
+    "type": "Organization",
+    "site_admin": false
+  },
+  "html_url": "https://github.com/octo/app",
+  "description": "Sample application",
+  "fork": false,
+  "url": "https://api.github.com/repos/octo/app",
+  "git_url": "git://github.com/octo/app.git",
+  "ssh_url": "git@github.com:octo/app.git",
+  "clone_url": "https://github.com/octo/app.git",
+  "created_at": "2026-09-01T10:00:00Z",
+  "updated_at": "2026-10-18T09:12:44Z",
+  "pushed_at": "2026-10-18T09:12:40Z",
+  "size": 128,
+  "default_branch": "main",
+  "visibility": "public"
+}

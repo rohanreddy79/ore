@@ -1,0 +1,39 @@
+{
+  "action": "opened",
+  "issue": {
+    "url": "https://api.github.com/repos/octo/app/issues/42",
+    "repository_url": "https://api.github.com/repos/octo/app",
+    "html_url": "https://github.com/octo/app/issues/42",
+    "id": 2765432109,
+    "node_id": "I_kwDOABPHjc6kzVGn",
+    "number": 42,
+    "title": "Fix the flaky retry in the uploader",
+    "user": {"login": "octocat", "id": 1, "type": "User"},
+    "labels": [{"id": 208045946, "name": "bug", "color": "d73a4a", "default": true}],
+    "state": "open",
+    "locked": false,
+    "assignee": null,
+    "assignees": [],
+    "milestone": null,
+    "comments": 0,
+    "created_at": "2026-10-18T09:15:00Z",
+    "updated_at": "2026-10-18T09:15:00Z",
+    "closed_at": null,
+    "author_association": "OWNER",
+    "body": "The uploader retries once and gives up.\n\nSteps: run `go test ./uploader -count=20`; about one run in five fails with `context deadline exceeded`.",
+    "reactions": {"url": "https://api.github.com/repos/octo/app/issues/42/reactions", "total_count": 0},
+    "state_reason": null
+  },
+  "repository": {
+    "id": 1296269,
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main"
+  },
+  "sender": {"login": "octocat", "id": 1, "type": "User"},
+  "installation": {"id": 44556677}
+}

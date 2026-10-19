@@ -1,0 +1,35 @@
+{
+  "zen": "Keep it logically awesome.",
+  "hook_id": 512345678,
+  "hook": {
+    "type": "Repository",
+    "id": 512345678,
+    "name": "web",
+    "active": true,
+    "events": ["issues", "pull_request", "push"],
+    "config": {
+      "content_type": "json",
+      "insecure_ssl": "0",
+      "url": "https://ore.example.org/hooks/github"
+    },
+    "updated_at": "2026-10-18T09:00:00Z",
+    "created_at": "2026-10-18T09:00:00Z",
+    "url": "https://api.github.com/repos/octo/app/hooks/512345678",
+    "test_url": "https://api.github.com/repos/octo/app/hooks/512345678/test",
+    "ping_url": "https://api.github.com/repos/octo/app/hooks/512345678/pings",
+    "deliveries_url": "https://api.github.com/repos/octo/app/hooks/512345678/deliveries",
+    "last_response": {"code": null, "status": "unused", "message": null}
+  },
+  "repository": {
+    "id": 1296269,
+    "node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main"
+  },
+  "sender": {"login": "octocat", "id": 1, "type": "User"}
+}

@@ -1,0 +1,18 @@
+{
+  "action": "created",
+  "installation": {
+    "id": 44556677,
+    "account": {"login": "octo", "id": 583231, "type": "Organization"},
+    "repository_selection": "selected",
+    "app_id": 987654,
+    "app_slug": "ore-forge",
+    "target_type": "Organization",
+    "permissions": {"contents": "read", "issues": "read", "pull_requests": "read", "statuses": "write", "metadata": "read"},
+    "events": ["issues", "pull_request", "push"]
+  },
+  "repositories": [
+    {"id": 1296269, "node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5", "name": "app", "full_name": "octo/app", "private": false}
+  ],
+  "requester": null,
+  "sender": {"login": "octocat", "id": 1, "type": "User"}
+}

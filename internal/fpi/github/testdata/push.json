@@ -1,0 +1,56 @@
+{
+  "ref": "refs/heads/main",
+  "before": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+  "after": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+  "repository": {
+    "id": 1296269,
+    "node_id": "MDEwOlJlcG9zaXRvcnkxMjk2MjY5",
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"name": "octo", "email": null, "login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "git_url": "git://github.com/octo/app.git",
+    "ssh_url": "git@github.com:octo/app.git",
+    "default_branch": "main",
+    "master_branch": "main",
+    "pushed_at": 1760778760
+  },
+  "pusher": {"name": "octocat", "email": "octocat@github.com"},
+  "sender": {"login": "octocat", "id": 1, "type": "User"},
+  "installation": {"id": 44556677, "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNDQ1NTY2Nzc="},
+  "created": false,
+  "deleted": false,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/octo/app/compare/6113728f27ae...0a1b2c3d4e5f",
+  "commits": [
+    {
+      "id": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+      "tree_id": "f1e2d3c4b5a69788796a5b4c3d2e1f0012345678",
+      "distinct": true,
+      "message": "Fix the greeting",
+      "timestamp": "2026-10-18T11:12:40+02:00",
+      "url": "https://github.com/octo/app/commit/0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+      "author": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+      "committer": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+      "added": [],
+      "removed": [],
+      "modified": ["main.go"]
+    }
+  ],
+  "head_commit": {
+    "id": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+    "tree_id": "f1e2d3c4b5a69788796a5b4c3d2e1f0012345678",
+    "distinct": true,
+    "message": "Fix the greeting",
+    "timestamp": "2026-10-18T11:12:40+02:00",
+    "url": "https://github.com/octo/app/commit/0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+    "author": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+    "committer": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+    "added": [],
+    "removed": [],
+    "modified": ["main.go"]
+  }
+}
