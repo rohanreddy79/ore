@@ -268,6 +268,15 @@ func (s *Server) exec(ctx context.Context, actor ledger.Actor, ch ssh.Channel, c
 	if err := s.Auth.Authorize(ctx, actor, repo, write); err != nil {
 		return refuse("%s", err.Error())
 	}
+	// The organization's git transport mode (ADR 0016 §3): the same message
+	// smart HTTP sends, on stderr.
+	st, err := s.DB.OrgSettings(ctx, ledger.Org{ID: repo.OrgID, Name: repo.Org})
+	if err != nil {
+		return refuse("organization settings: %v", err)
+	}
+	if msg := githttp.TransportRefusal(st, repo.Name, write); msg != "" {
+		return refuse("%s", msg)
+	}
 	repoPath := githttp.RepoPath(s.ReposDir, org, name)
 	cmdEnv := append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C",
 		"ORE_ACTOR_KIND="+actor.Kind, "ORE_ACTOR_ID="+actor.ID,

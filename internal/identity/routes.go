@@ -49,6 +49,9 @@ func (s *Service) Routes(mux *http.ServeMux) {
 	h("DELETE /api/v0/identity/ssh-keys/{id}", s.removeKey)
 	h("GET /api/v0/identity/agents", s.listAgents)
 	h("POST /api/v0/identity/agents", s.createAgent)
+	// organization settings (orgsettings.go): the git transport switch of ADR 0016 §3
+	h("GET /api/v0/orgs/{org}/settings", s.getOrgSettings)
+	h("PATCH /api/v0/orgs/{org}/settings", s.patchOrgSettings)
 }
 
 func statusOf(err error) int {
