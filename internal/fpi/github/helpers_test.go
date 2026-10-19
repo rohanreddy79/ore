@@ -52,6 +52,8 @@ type fakeGitHub struct {
 	rateLimitHits int
 	gitRequests   int
 	gitRejected   int
+	// failOnce answers the given status once for the first request whose path+query contains the key.
+	failOnce map[string]int
 }
 
 type fakeRepo struct {
@@ -60,6 +62,7 @@ type fakeRepo struct {
 	path          string
 	defaultBranch string
 	issues        []map[string]any
+	imp           *fakeImportData
 }
 
 type statusCall struct {
@@ -73,7 +76,7 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 	if err != nil {
 		t.Skip(err)
 	}
-	f := &fakeGitHub{t: t, root: t.TempDir(), backend: backend, repos: map[string]*fakeRepo{}, calls: map[string]int{}}
+	f := &fakeGitHub{t: t, root: t.TempDir(), backend: backend, repos: map[string]*fakeRepo{}, calls: map[string]int{}, failOnce: map[string]int{}}
 	mux := http.NewServeMux()
 	api := func(pattern string, fn func(w http.ResponseWriter, r *http.Request, repo *fakeRepo)) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +102,24 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 			}
 			f.mu.Lock()
 			repo := f.repos[strings.ToLower(r.PathValue("owner")+"/"+r.PathValue("name"))]
+			var injected int
+			for key, status := range f.failOnce {
+				if status > 0 && strings.Contains(r.URL.RequestURI(), key) {
+					injected = status
+					f.failOnce[key] = 0
+					break
+				}
+			}
 			f.mu.Unlock()
+			if injected > 0 {
+				if injected == http.StatusTooManyRequests {
+					w.Header().Set("Retry-After", "60")
+					w.Header().Set("X-RateLimit-Remaining", "0")
+				}
+				w.WriteHeader(injected)
+				fmt.Fprintf(w, `{"message":"injected failure %d"}`, injected)
+				return
+			}
 			if repo == nil {
 				w.WriteHeader(http.StatusNotFound)
 				fmt.Fprint(w, `{"message":"Not Found","documentation_url":"https://docs.github.com/rest/repos/repos#get-a-repository"}`)
@@ -111,10 +131,14 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 	api("GET /repos/{owner}/{name}", func(w http.ResponseWriter, r *http.Request, repo *fakeRepo) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"id": repo.id, "name": repo.name, "full_name": repo.owner + "/" + repo.name, "private": false,
-			"owner":          map[string]any{"login": repo.owner, "type": "Organization"},
-			"html_url":       "https://github.com/" + repo.owner + "/" + repo.name,
-			"clone_url":      f.srv.URL + "/git/" + repo.owner + "/" + repo.name + ".git",
-			"default_branch": repo.defaultBranch,
+			"owner":             map[string]any{"login": repo.owner, "type": "Organization"},
+			"html_url":          "https://github.com/" + repo.owner + "/" + repo.name,
+			"clone_url":         f.srv.URL + "/git/" + repo.owner + "/" + repo.name + ".git",
+			"default_branch":    repo.defaultBranch,
+			"size":              128,
+			"has_wiki":          repo.imp != nil && repo.imp.hasWiki,
+			"has_issues":        true,
+			"open_issues_count": len(repo.issues),
 		})
 	})
 	api("POST /repos/{owner}/{name}/statuses/{sha}", func(w http.ResponseWriter, r *http.Request, repo *fakeRepo) {
@@ -136,19 +160,7 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]any{"id": len(f.statuses), "state": body["state"], "context": body["context"], "target_url": body["target_url"]})
 	})
-	api("GET /repos/{owner}/{name}/issues", func(w http.ResponseWriter, r *http.Request, repo *fakeRepo) {
-		state := r.URL.Query().Get("state")
-		var out []map[string]any
-		for _, i := range repo.issues {
-			if state == "all" || state == "" && i["state"] == "open" || i["state"] == state {
-				out = append(out, i)
-			}
-		}
-		if out == nil {
-			out = []map[string]any{}
-		}
-		json.NewEncoder(w).Encode(out)
-	})
+	f.importRoutes(api)
 	api("GET /repos/{owner}/{name}/git/matching-refs/{prefix...}", func(w http.ResponseWriter, r *http.Request, repo *fakeRepo) {
 		refs, err := gitx.Refs(r.Context(), repo.path)
 		if err != nil {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,9 @@ type Service struct {
 	DB       *ledger.DB
 	ReposDir string
 	BaseURL  string
-	Log      *slog.Logger
+	// DataDir holds import downloads and the import signing key (the parent of the logs directory).
+	DataDir string
+	Log     *slog.Logger
 	// Client is nil when no token is configured; linking then fails with a clear error.
 	Client         *Client
 	SyncInterval   time.Duration
@@ -35,15 +38,16 @@ type Service struct {
 	store  store
 	now    func() time.Time
 
-	mu    sync.Mutex
-	locks map[string]*sync.Mutex
+	mu      sync.Mutex
+	locks   map[string]*sync.Mutex
+	running map[string]bool
 	// statusDeferUntil holds the status reporter back after a rate-limit response.
 	statusDeferUntil time.Time
 }
 
 // New builds the adapter for a server from an explicit configuration.
 func New(cfg Config, s *web.Server) *Service {
-	svc := &Service{DB: s.DB, ReposDir: s.ReposDir, BaseURL: strings.TrimRight(s.BaseURL, "/"), Log: s.Log, Client: NewClient(cfg),
+	svc := &Service{DB: s.DB, ReposDir: s.ReposDir, BaseURL: strings.TrimRight(s.BaseURL, "/"), DataDir: dataDir(s), Log: s.Log, Client: NewClient(cfg),
 		SyncInterval: cfg.SyncInterval, StatusInterval: cfg.StatusInterval, server: s, store: store{db: s.DB}, now: cfg.Now, locks: map[string]*sync.Mutex{}}
 	if svc.now == nil {
 		svc.now = time.Now
@@ -55,6 +59,16 @@ func New(cfg Config, s *web.Server) *Service {
 		svc.StatusInterval = DefaultStatusInterval
 	}
 	return svc
+}
+
+func dataDir(s *web.Server) string {
+	if s.LogsDir != "" {
+		return filepath.Dir(s.LogsDir)
+	}
+	if s.ReposDir != "" {
+		return filepath.Dir(s.ReposDir)
+	}
+	return "ore-data"
 }
 
 // Install is the registry extension: configuration from the environment,
@@ -124,6 +138,7 @@ func (svc *Service) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/repos/{org}/{name}/github/link", svc.api(svc.handleLink))
 	mux.HandleFunc("DELETE /api/v0/repos/{org}/{name}/github/link", svc.api(svc.handleUnlink))
 	mux.HandleFunc("POST /api/v0/repos/{org}/{name}/github/sync", svc.api(svc.handleSync))
+	svc.importRoutes(mux)
 }
 
 var errBadRequest = errors.New("bad request")
