@@ -67,8 +67,9 @@ export function ChangePage() {
     const m = new Map<string, Comment[]>()
     for (const c of comments.data ?? []) {
       const a = c.anchor
-      if (!a || !a.path) continue
-      const k = anchorKey(a.path, 'new', a.end_line || a.start_line)
+      const path = a?.path ?? c.path
+      if (!a || !path) continue
+      const k = anchorKey(path, 'new', a.end_line || a.start_line)
       ;(m.get(k) ?? m.set(k, []).get(k)!).push(c)
     }
     return m
@@ -240,7 +241,7 @@ export function ChangePage() {
                               'verdict' in it ? (
                                 <ReviewCard key={it.id} review={it} org={org} repo={repo} num={num} onFocus={(f) => { setSearch({ tab: 'files' }); setFocus(f) }} onApply={(f) => void applyFix(org, repo, c.source_ref, c.head_oid, f, toast, invalidate)} canApply={isOpen} />
                               ) : (
-                                <CommentCard key={it.id} comment={it} onResolve={(resolved) => void post(() => actions.resolveComment(org, repo, num, it.id, resolved), resolved ? 'Resolved' : 'Reopened')} onJump={it.anchor ? () => { setSearch({ tab: 'files' }); setFocus({ path: it.anchor!.path, side: 'new', line: it.anchor!.end_line || it.anchor!.start_line }) } : undefined} />
+                                <CommentCard key={it.id} comment={it} onResolve={(resolved) => void post(() => actions.resolveComment(org, repo, num, it.id, resolved), resolved ? 'Resolved' : 'Reopened')} onJump={it.anchor && it.path ? () => { setSearch({ tab: 'files' }); setFocus({ path: it.path!, side: 'new', line: it.anchor!.end_line || it.anchor!.start_line }) } : undefined} />
                               ),
                             )}
                           </div>

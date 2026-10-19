@@ -6,7 +6,7 @@ marked.setOptions({ gfm: true, breaks: false })
 const ALLOWED_TAGS = [
   'a', 'abbr', 'b', 'blockquote', 'br', 'code', 'dd', 'del', 'details', 'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'input', 'ins', 'kbd', 'li', 'ol', 'p', 'pre', 'q', 's', 'samp', 'small', 'span', 'strong', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
 ]
-const ALLOWED_ATTR = ['href', 'title', 'alt', 'src', 'align', 'class', 'type', 'checked', 'disabled', 'start', 'colspan', 'rowspan', 'open', 'id']
+const ALLOWED_ATTR = ['href', 'title', 'alt', 'src', 'align', 'class', 'type', 'checked', 'disabled', 'start', 'colspan', 'rowspan', 'open', 'id', 'aria-label', 'tabindex']
 
 let hooked = false
 function hook() {
@@ -23,6 +23,10 @@ function hook() {
     if (node.tagName === 'INPUT') {
       node.setAttribute('disabled', '')
       if (node.getAttribute('type') !== 'checkbox') node.remove()
+      else {
+        node.setAttribute('aria-label', node.hasAttribute('checked') ? 'Done' : 'To do')
+        node.setAttribute('tabindex', '-1')
+      }
     }
     if (node.tagName === 'IMG') {
       const src = node.getAttribute('src') ?? ''

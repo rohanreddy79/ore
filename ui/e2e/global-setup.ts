@@ -55,11 +55,11 @@ export default async function globalSetup() {
   await api('POST', '/api/v0/repos/acme/app/commits', { branch: 'feature/guide-polish', message: 'docs: polish the guide', files: [{ path: 'docs/guide.md', content: DEMO_FILES['docs/guide.md'] + '\n## Rollback\n\nUse `ore deploy rollback`.\n' }] })
   await api('POST', '/api/v0/repos/acme/app/commits', { branch: 'feature/guide-polish', message: 'docs: move old-name', files: [{ path: 'docs/old-name.md', delete: true }, { path: 'docs/moved/new-name.md', content: DEMO_FILES['docs/old-name.md'] }] })
   await api('POST', '/api/v0/repos/acme/app/changes', { source_ref: 'refs/heads/feature/guide-polish', title: 'Polish the guide', body: 'Expands the guide and moves a file.' })
-  // A big change: 50 files × 400 changed lines, for the render budget.
+  // A big change: 50 files × 401 changed lines (over the 400-line collapse threshold), for the render budget.
   const big: Array<{ path: string; content: string }> = []
   for (let f = 0; f < 50; f++) {
     const lines: string[] = []
-    for (let l = 0; l < 400; l++) lines.push(`export const value${f}_${l} = compute(${l}) // generated`)
+    for (let l = 0; l < 401; l++) lines.push(`export const value${f}_${l} = compute(${l}) // generated`)
     big.push({ path: `gen/module${f}.ts`, content: lines.join('\n') + '\n' })
   }
   await api('POST', '/api/v0/repos/acme/app/commits', { branch: 'feature/big', message: 'generated: 20,000 lines', files: big })

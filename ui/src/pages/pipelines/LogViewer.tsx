@@ -9,7 +9,12 @@ const FAILURE_RE = /\b(error|fail(ed|ure)?|panic|fatal|exit (status|code) [1-9]\
 
 /** Finds the first line that looks like a failure; exported for tests. */
 export function findFailure(lines: string[], from = 0): number {
-  for (let i = from; i < lines.length; i++) if (FAILURE_RE.test(lines[i]!)) return i
+  for (let i = from; i < lines.length; i++) {
+    const l = lines[i]!
+    // The runner echoes each task's command as "[task] start: …"; that line is not a failure.
+    if (/\] start: /.test(l)) continue
+    if (FAILURE_RE.test(l)) return i
+  }
   return -1
 }
 
@@ -121,6 +126,16 @@ export function LogViewer({ source, finished, height = 520, title }: { source: L
     },
     [lines.length, rowV],
   )
+  // Search as you type: scroll to the first match of a new query.
+  const lastQuery = useRef('')
+  useEffect(() => {
+    if (q.trim() && q !== lastQuery.current && matches.length > 0) {
+      lastQuery.current = q
+      jumpTo(matches[0]!)
+    }
+    if (!q.trim()) lastQuery.current = ''
+  }, [q, matches, jumpTo])
+
   const nextMatch = () => {
     if (matches.length === 0) return
     const n = (matchIdx + 1) % matches.length

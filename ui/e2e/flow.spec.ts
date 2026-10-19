@@ -12,7 +12,7 @@ test.describe('the main flow', () => {
 
   test('browse code: tree, README, a file with line anchors, history and a commit diff', async ({ page }) => {
     await page.goto('/app/acme/app')
-    await expect(page.locator('.page-head h1')).toContainText('app')
+    await expect(page.locator('.repo-head h1')).toContainText('app')
     // README renders as Markdown, sanitized.
     await expect(page.locator('.prose h1', { hasText: 'app' })).toBeVisible()
     expect(await page.locator('.prose script').count()).toBe(0)
@@ -110,19 +110,20 @@ test.describe('the main flow', () => {
     await page.locator('.file-header', { hasText: 'docs/guide.md' }).scrollIntoViewIfNeeded()
     await page.locator('.line-grid .cell.num.clickable').first().click()
     await page.getByLabel('Inline comment').fill('Please mention the health check here.')
-    await page.getByRole('button', { name: 'Comment' }).first().click()
-    await expect(page.locator('.thread-box')).toContainText('Please mention the health check here.')
+    await page.getByRole('button', { name: 'Comment', exact: true }).click()
+    await expect(page.locator('.thread-box .comment')).toContainText('Please mention the health check here.')
     // A review with a finding carrying a suggested fix.
     await page.getByRole('button', { name: 'Review' }).click()
     const rd = page.getByRole('dialog')
     await rd.getByLabel('Request changes').check()
     await rd.getByRole('button', { name: 'Add finding' }).click()
     await rd.getByLabel('Path').fill('docs/guide.md')
-    await rd.getByLabel('Lines').fill('1')
+    await rd.getByLabel('Lines', { exact: true }).fill('1')
     await rd.getByLabel('End line').fill('1')
     await rd.getByLabel('Message').fill('Title should name the service.')
     await rd.getByLabel('Suggested fix (replaces the lines)').fill('# Guide to deploying app')
     await rd.getByRole('button', { name: 'Submit review' }).click()
+    await expect(rd).toBeHidden()
     await page.goto(`/app/acme/app/changes/${ch.number}`)
     await expect(page.locator('.finding-sev')).toBeVisible()
     await expect(page.getByText('does not count')).toHaveCount(0)
@@ -150,12 +151,15 @@ test.describe('the main flow', () => {
     await expect(page.locator('.log-line.err')).toBeVisible()
     await page.getByLabel('Search log').fill('49999')
     await expect(page.getByText('1 / 1')).toBeVisible()
+    // Search-as-you-type scrolls to the first match, so the virtualized row is in the DOM.
     await expect(page.locator('.log-line.match')).toContainText('49999')
+    await page.getByLabel('Search log').press('Enter')
+    await expect(page.locator('.log-line.current')).toContainText('49999')
   })
 
   test('deployments: environment cards, deploy request and DORA panel', async ({ page }) => {
     await page.goto('/app/acme/app/deployments')
-    await expect(page.getByRole('heading', { name: 'Deployments' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Deployments', exact: true })).toBeVisible()
     await expect(page.locator('.env-card', { hasText: 'production' })).toBeVisible()
     await expect(page.locator('.env-card', { hasText: 'preview' })).toBeVisible()
     await expect(page.getByText('DORA · last 30 days')).toBeVisible()

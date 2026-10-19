@@ -180,7 +180,8 @@ export type Compare = { base: string; head: string; merge_base: string; diff: st
 // review v1
 export type PatchSet = { id: string; number: number; base_oid: string; head_oid: string; pushed_by: Actor; created_at: string }
 export type Interdiff = { from: PatchSet; to: PatchSet; identical: boolean; rebased: boolean; diff: string; range_diff?: string; note?: string }
-export type Anchor = { patch_set: number; path: string; start_line: number; end_line: number; side?: string }
+// The anchor is the comment's position on the latest patch set; the path stays on the comment itself.
+export type Anchor = { patch_set: number; start_line: number; end_line: number; path?: string }
 export type Comment = { id: string; change_id: string; patch_set: number; path?: string; start_line?: number; end_line?: number; body: string; author: Actor; lane: 'human' | 'bot' | 'agent' | string; resolved: boolean; created_at: string; anchor?: Anchor; outdated: boolean }
 export type Finding = { severity: 'info' | 'low' | 'medium' | 'high' | 'critical' | string; confidence: number; category?: string; path: string; range?: { start_line: number; end_line: number }; message: string; suggested_fix?: string; fingerprint?: string }
 export type Review = { id: string; patch_set: number; reviewer: Actor; lane: string; verdict: 'comment' | 'approve' | 'request_changes' | string; findings: Finding[]; body?: string; created_at: string; counts: boolean }

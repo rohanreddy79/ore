@@ -53,7 +53,8 @@ export function describeEvent(e: LedgerEvent): { text: string; href: string; ico
     href = `${repoHref}/settings/github`
   }
   let subject = e.subject
-  if (kind && id) subject = `${org}/${repo} ${kind === 'agent' ? 'agent run' : kind.replace(/s$/, '')} ${kind === 'runs' || kind === 'agent' || kind === 'deployments' ? id.slice(0, 12) : `#${id}`}`
+  if (kind === 'refs') subject = `${org}/${repo} ${parts.slice(3).join('/')}`
+  else if (kind && id) subject = `${org}/${repo} ${kind === 'agent' ? 'agent run' : kind.replace(/s$/, '')} ${kind === 'runs' || kind === 'agent' || kind === 'deployments' ? id.slice(0, 12) : `#${id}`}`
   const step = typeof d.step === 'string' && verb === 'agent.session.step' ? ` → ${d.step}` : ''
   return { text: `${human}${step} · ${subject}${title}`, href, icon, tone }
 }

@@ -53,7 +53,7 @@ Written up in `ui/src/design/README.md`. In short: a forge aesthetic (warm paper
 - `flow.spec.ts`: home; browse code (README sanitized, syntax highlighting, line anchors, `t` finder, history, commit diff); edit a file through the API; issues with `j/k/↵`, the run-agent dialog explaining L3, the loop completing live, the change landing (L3), the ledger tab updating without a reload, the issue closed by the loop; review a change (inline comment, request-changes review with a finding, Apply fix creates patch set 2, Land with the queue strategy merges); a run detail with a 50,000-line log (jump to failure, search); deployments (cards, deploy request, DORA); settings (level with explanation, tokens shown once, MCP instructions).
 - `keyboard.spec.ts`: ⌘K palette, `g` chords for every tab, `?` help, Tab order with a visible focus ring, `/` and `c`.
 - `edge.spec.ts`: friendly 404 for repository, change, issue and file; API 5xx → toast with Retry and no blank screen; stream disconnect → reconnect without duplicate events; a Markdown comment with script tags inert; a renamed file in a diff and a very long file name; a change with zero patch sets; fleet/learn/webhooks absent → hints, no console errors; 375 px width without horizontal overflow.
-- `perf.spec.ts`: the seeded 20,000-line change: `performance.measure('ore:diff')` under 200 ms after data arrives, collapsed large files load on demand, fewer than 150 rows in the DOM, cumulative layout shift under 0.1 on the main pages.
+- `perf.spec.ts`: the seeded 20,050-line change (50 files × 401 lines): `performance.measure('ore:diff')` under 200 ms after data arrives (measured 13 ms in headless Chromium on this machine), collapsed large files load on demand, fewer than 150 rows in the DOM, cumulative layout shift under 0.1 on the main pages.
 - `a11y.spec.ts`: every control named, every input labelled, images with alt, body and muted text contrast ≥ 4.5:1, in light and dark.
 - `visual.spec.ts`: screenshots of sixteen pages in light and dark plus two mobile shots, written to `ui/e2e/screenshots/`.
 
@@ -90,7 +90,7 @@ Dark variants use graphite surfaces with the same copper and violet; contrast ch
 | A log of 50,000 lines | `pipelines.test.ts` (search and failure scan), `flow.spec.ts` (streamed, searched, jumped) |
 | A change with zero patch sets | `edge.spec.ts` |
 | Fleet or learn API absent | `edge.spec.ts` (hints, no errors); every optional hook treats 404 as absent |
-| 20,000-line change interactive under 200 ms | `window.test.tsx` (model), `perf.spec.ts` (in the browser) |
+| 20,000-line change interactive under 200 ms | `window.test.tsx` (model under 200 ms in jsdom), `perf.spec.ts` (13 ms in Chromium) |
 | Works at 375 px | `edge.spec.ts`, mobile screenshots |
 | Missing asset is a 404, never the shell; unbuilt app explains itself | `webapp_test.go` |
 | Option injection and path traversal in revision and path parameters | `webapp_test.go` |
@@ -103,7 +103,7 @@ Dark variants use graphite surfaces with the same copper and violet; contrast ch
 - **Fleet, learn and webhooks** pages are built against the documented intent (`/api/v0/fleet/`, `/api/v0/learn/lessons`, `/api/v0/webhooks`) and hide themselves with a hint until those routes exist; their exact JSON will need a pass when the slices land.
 - **Binary files in diffs** show a notice; image previews side by side are not built. The commits API cannot post binary content, so binary diffs are covered by unit tests, not the live suite.
 - **Expand context** between hunks needs the blobs; the per-file CodeMirror compare covers "show me the whole file" instead.
-- **Inline comments on the old side**: the review API has no side field; comments anchor to new-side lines.
+- **Inline comments on the old side**: the review API has no side field; comments anchor to new-side lines. (The API's `anchor` carries the patch set and lines; the path stays on the comment itself, which is what the viewer keys threads by.)
 - **Renaming a repository, changing the default branch or deploy port**: not in the v0 API.
 - **Issue comments from humans**: the comments route for issues is read-only outside the gateway; the UI shows them and points at the API/MCP.
 - **Offline/PWA**, localization and the Loro CRDT for shared descriptions (docs/03 §2.1) are not started.

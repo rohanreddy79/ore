@@ -284,15 +284,18 @@ function FileHeader({ file, index, expanded, onToggle, onCompare, badge }: { fil
       </Button>
       <span className={`glyph ${file.status}`} aria-hidden />
       <span className="path" title={file.path}>
-        {file.status === 'renamed' || file.status === 'copied' ? (
-          <>
-            <bdi>{file.oldPath}</bdi>
-            <span className="arrow">→</span>
-            <bdi>{file.newPath}</bdi>
-          </>
-        ) : (
-          <bdi>{file.path}</bdi>
-        )}
+        {/* The container is RTL so overflow truncates the start of the path; the content is isolated LTR so its order is preserved. */}
+        <bdi dir="ltr">
+          {file.status === 'renamed' || file.status === 'copied' ? (
+            <>
+              {file.oldPath}
+              <span className="arrow">→</span>
+              {file.newPath}
+            </>
+          ) : (
+            file.path
+          )}
+        </bdi>
       </span>
       {status ? (
         <Pill small tone={status === 'added' ? 'ok' : status === 'deleted' ? 'danger' : 'info'}>

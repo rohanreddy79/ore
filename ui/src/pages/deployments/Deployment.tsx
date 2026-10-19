@@ -71,7 +71,7 @@ export function DeploymentPage() {
                 </div>
               </div>
               <div className="row">
-                {d.url ? (
+                {d.url && /^https?:/.test(d.url) ? (
                   <a className="btn" href={d.url} target="_blank" rel="noreferrer">
                     <ExternalLink /> Open {d.url}
                   </a>

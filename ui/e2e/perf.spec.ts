@@ -6,7 +6,7 @@ test('a 20,000-line change renders interactively under 200 ms after data arrives
   const ch = changes.find((c) => c.title === 'A 20,000-line change')!
   await page.goto(`/app/acme/app/changes/${ch.number}?tab=files`)
   await expect(page.locator('.diff-summary')).toContainText('50 files changed')
-  await expect(page.locator('.diff-summary')).toContainText('+20000')
+  await expect(page.locator('.diff-summary')).toContainText('+20050')
   const measure = await page.evaluate(() => {
     const m = performance.getEntriesByName('ore:diff', 'measure').at(-1)
     return m ? m.duration : null

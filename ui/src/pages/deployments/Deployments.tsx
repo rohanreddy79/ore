@@ -133,10 +133,12 @@ export function DeploymentsPage() {
                         <TimeAgo iso={cur.finished_at ?? cur.created_at} />
                       </span>
                     </span>
-                    {cur.url ? (
+                    {cur.url && /^https?:/.test(cur.url) ? (
                       <a href={cur.url} target="_blank" rel="noreferrer" className="btn sm ghost">
                         <ExternalLink /> {cur.url.replace(/^https?:\/\//, '')}
                       </a>
+                    ) : cur.url ? (
+                      <code className="small muted" title="Recorded only: this executor does not start containers">{cur.url}</code>
                     ) : null}
                   </div>
                 ) : (
@@ -245,9 +247,13 @@ function DeploymentItem({ d, org, repo }: { d: Deployment; org: string; repo: st
         <StatusPill status={d.status} small />
         {d.rollback_of ? <Pill small tone="warn">rollback</Pill> : null}
         {d.url && d.status === 'succeeded' ? (
-          <a href={d.url} target="_blank" rel="noreferrer" className="small">
-            {d.url}
-          </a>
+          /^https?:/.test(d.url) ? (
+            <a href={d.url} target="_blank" rel="noreferrer" className="small">
+              {d.url}
+            </a>
+          ) : (
+            <code className="small muted">{d.url}</code>
+          )
         ) : null}
       </div>
       <div className="when">
