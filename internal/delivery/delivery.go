@@ -30,6 +30,12 @@ type Deployer struct {
 	Executor string
 	// PublicHost is the host used in deployment URLs (default localhost).
 	PublicHost string
+	// Environments, when set, routes Deploy, Rollback and Stop through the
+	// environment's policy (approvals, allowed refs, remote targets,
+	// health-gated rollouts) whenever the repository has a record for the
+	// environment. Repositories without records keep the implicit local-docker
+	// path below, so `ore demo` is unchanged.
+	Environments *Service
 }
 
 func docker(ctx context.Context, args ...string) (string, error) {
@@ -44,6 +50,11 @@ func docker(ctx context.Context, args ...string) (string, error) {
 
 // Deploy places commitOID into env. previous (if any) is stopped after the new container is up.
 func (d *Deployer) Deploy(ctx context.Context, repo ledger.Repo, commitOID, env string, actor ledger.Actor, rollbackOf *string) (ledger.Deployment, error) {
+	if d.Environments != nil {
+		if dep, handled, err := d.Environments.hookDeploy(ctx, repo, commitOID, env, actor, rollbackOf); handled {
+			return dep, err
+		}
+	}
 	dep := ledger.Deployment{Environment: env, CommitOID: commitOID, Actor: actor, RollbackOf: rollbackOf}
 	if prev, err := d.DB.CurrentDeployment(ctx, repo, env); err == nil {
 		dep.PreviousID = &prev.ID
@@ -147,6 +158,11 @@ func waitHealthy(ctx context.Context, url string, timeout time.Duration) error {
 
 // Rollback redeploys the deployment before the current one in env.
 func (d *Deployer) Rollback(ctx context.Context, repo ledger.Repo, env string, actor ledger.Actor) (ledger.Deployment, error) {
+	if d.Environments != nil {
+		if dep, handled, err := d.Environments.hookRollback(ctx, repo, env, actor); handled {
+			return dep, err
+		}
+	}
 	cur, err := d.DB.CurrentDeployment(ctx, repo, env)
 	if err != nil {
 		return ledger.Deployment{}, fmt.Errorf("nothing deployed in %s", env)
@@ -168,6 +184,11 @@ func (d *Deployer) Rollback(ctx context.Context, repo ledger.Repo, env string, a
 
 // Stop removes the container for an environment and records it.
 func (d *Deployer) Stop(ctx context.Context, repo ledger.Repo, env string, actor ledger.Actor) error {
+	if d.Environments != nil {
+		if handled, err := d.Environments.hookStop(ctx, repo, env, actor); handled {
+			return err
+		}
+	}
 	cur, err := d.DB.CurrentDeployment(ctx, repo, env)
 	if err != nil {
 		return fmt.Errorf("nothing deployed in %s", env)
