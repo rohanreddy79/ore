@@ -152,7 +152,7 @@ func TestResolveRefReadsBranchesFromDiskAndFallsBackToGit(t *testing.T) {
 		t.Fatalf("after update: %q %v (want %s)", got, err, c1)
 	}
 	// annotated tags, HEAD and abbreviations go through git and peel to the commit
-	if _, err := Run(ctx, rp, nil, "tag", "-a", "v1", "-m", "v1", c1); err != nil {
+	if _, err := Run(ctx, rp, []string{"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t"}, "tag", "-a", "v1", "-m", "v1", c1); err != nil {
 		t.Fatal(err)
 	}
 	for _, rev := range []string{"refs/tags/v1", "HEAD", "main", c1[:10]} {
@@ -180,7 +180,7 @@ func TestRefsFromDiskMatchForEachRef(t *testing.T) {
 	c0, _ := CommitFiles(ctx, rp, "", []FileEdit{{Path: "a", Content: []byte("1\n")}}, "init", au)
 	UpdateRef(ctx, rp, "refs/heads/main", c0, ZeroOID)
 	UpdateRef(ctx, rp, "refs/heads/feature/x", c0, ZeroOID)
-	Run(ctx, rp, nil, "tag", "-a", "v1", "-m", "v1", c0)
+	Run(ctx, rp, []string{"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t"}, "tag", "-a", "v1", "-m", "v1", c0)
 	Run(ctx, rp, nil, "tag", "light", c0)
 	Run(ctx, rp, nil, "pack-refs", "--all")
 	c1, _ := CommitFiles(ctx, rp, c0, []FileEdit{{Path: "a", Content: []byte("2\n")}}, "second", au)
