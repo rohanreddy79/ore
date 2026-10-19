@@ -37,3 +37,11 @@ Same rules as wave 1. Wave 2 is built by the wave-1 sessions on their existing b
 | GitHub importer with fidelity report (follow-up in the GitHub adapter session) | `slice/github-import` | new files in `internal/fpi/github/` | `0011_github_import.sql` | `fpi.github` (existing) |
 
 Routes: every slice mounts under its own prefix (`/api/v0/fleet/`, `/api/v0/learn/`, `/api/v0/webhooks/`, `/api/v0/repos/{org}/{name}/import/`) so patterns cannot collide; the UI slice owns the HTML routes.
+
+## Wave 2 addition: the web app (GitHub-class UI)
+
+| Slice | Branch | Owns | Migration file | Registers as |
+|---|---|---|---|---|
+| Web app: a TypeScript single-page application with a design system, served by the binary; the primary UI | `slice/webapp` | `ui/` (the app), `internal/webapp/` (embeds the built app and mounts it under `/app/`; no edits to `internal/web/`) | none | `webapp` |
+
+The server-rendered pages from the "UI v1" slice stay as the no-JavaScript fallback and keep providing the SSE and diff endpoints the app consumes.
