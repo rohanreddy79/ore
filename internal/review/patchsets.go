@@ -83,9 +83,23 @@ func (s *Service) SyncPatchSets(ctx context.Context, r ledger.Repo, c ledger.Cha
 	if err != nil {
 		return c, PatchSet{}, err
 	}
-	latest, _, err := s.recordPatchSet(ctx, r, c, "", c.HeadOID, ledger.System)
+	// Only backfill from the change's recorded head; never append it as a new
+	// patch set. The row's head lags the branch until a sync updates it, and a
+	// concurrent sync may already have recorded the branch's head, in which
+	// case appending the lagging head would record it again (and the branch's
+	// head once more below).
+	existing, err := s.loadPatchSets(ctx, c)
 	if err != nil {
-		return c, latest, err
+		return c, PatchSet{}, err
+	}
+	var latest PatchSet
+	if len(existing) == 0 {
+		latest, _, err = s.recordPatchSet(ctx, r, c, c.BaseOID, c.HeadOID, ledger.System)
+		if err != nil {
+			return c, latest, err
+		}
+	} else {
+		latest = existing[len(existing)-1]
 	}
 	if c.State != "open" && c.State != StateReverted {
 		return c, latest, nil

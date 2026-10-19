@@ -116,3 +116,40 @@ func TestInterdiffRebasedShowsOnlyThePatchDelta(t *testing.T) {
 		t.Fatalf("1..3:\n%s", id.Diff)
 	}
 }
+
+// TestSyncPatchSetsLaggingChangeHead reproduces two syncs interleaving after a
+// push: the first recorded the branch's head as patch set 2 but had not yet
+// updated the change's head when the second loaded the change. The second must
+// not record the lagging head again (and the branch's head once more); the
+// regression recorded four patch sets for one push.
+func TestSyncPatchSetsLaggingChangeHead(t *testing.T) {
+	e := newEnv(t)
+	f1 := e.branch("feature", e.c0, edit("a.txt", "1\n2\nX\n4\n5\n"), "feat 1", e.human)
+	ch := e.open("feature")
+	f2 := e.push("feature", f1, edit("a.txt", "1\n2\nX\n4\n5\n6\n"), "feat 2", e.human)
+	// The state between a concurrent sync's recordPatchSet and its UpdateChangeHead.
+	if _, recorded, err := e.svc.recordPatchSet(e.ctx, e.repo, ch, "", f2, ledger.System); err != nil || !recorded {
+		t.Fatalf("record: %v recorded=%v", err, recorded)
+	}
+	if got := e.change(ch.Number); got.HeadOID != f1 {
+		t.Fatalf("precondition: the change's head should still lag at %s, got %s", f1[:8], got.HeadOID[:8])
+	}
+	c, latest, err := e.svc.SyncPatchSets(e.ctx, e.repo, ch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sets, _ := e.svc.loadPatchSets(e.ctx, ch)
+	if len(sets) != 2 || latest.Number != 2 || latest.HeadOID != f2 {
+		t.Fatalf("sync recorded the lagging head again: %d patch sets, latest %+v", len(sets), latest)
+	}
+	if c.HeadOID != f2 {
+		t.Fatalf("change head not updated: %s", c.HeadOID[:8])
+	}
+	// A second sync changes nothing.
+	if _, _, err := e.svc.SyncPatchSets(e.ctx, e.repo, ch); err != nil {
+		t.Fatal(err)
+	}
+	if sets, _ = e.svc.loadPatchSets(e.ctx, ch); len(sets) != 2 {
+		t.Fatalf("second sync recorded a patch set: %d", len(sets))
+	}
+}

@@ -36,6 +36,9 @@ test.describe('keyboard-only navigation', () => {
     await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeHidden()
     // Tab reaches the top bar controls and the tabs, with visible focus.
     await page.goto('/app/acme/app/issues')
+    // goto resolves at load, before React has rendered anything focusable on a
+    // slow machine; a Tab pressed then focuses nothing.
+    await page.locator('main h1').first().waitFor()
     await page.keyboard.press('Tab')
     const first = page.locator(':focus')
     await expect(first).toBeVisible()
