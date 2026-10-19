@@ -95,6 +95,10 @@ Dark variants use graphite surfaces with the same copper and violet; contrast ch
 | Missing asset is a 404, never the shell; unbuilt app explains itself | `webapp_test.go` |
 | Option injection and path traversal in revision and path parameters | `webapp_test.go` |
 
+## Verification
+
+`ORE_UI_E2E=1 scripts/e2e.sh` on the branch: `npm ci`, typecheck and Vite build, 70 Vitest cases, the size budget (shell 148.6 KB gzipped of 350 KB), gofmt, vet, `go test ./...`, the binary with the embedded app, the 25 Playwright tests against a real `ore serve` (the 20,000-line diff measured at 9.8 ms after data), and the Docker demo (17.7 s). `ore demo` is unchanged.
+
 ## Deferred
 
 - **Blame** (named in the brief as later): no blame endpoint exists yet.
