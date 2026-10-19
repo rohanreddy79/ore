@@ -1,0 +1,18 @@
+# Litestream configuration for the solo profile: continuous replication of the
+# SQLite ledger to an S3-compatible bucket. Ore opens the database in WAL mode,
+# which is what Litestream needs. Repositories (bare git) are not in SQLite:
+# back them up with `ore backup` (scheduled with ORE_BACKUP_TO) or sync
+# /data/repos separately.
+#
+# Restore the ledger file:   litestream restore -o /data/ore.db s3://BUCKET/ore/ore.db
+# Then start `ore serve`; migrations newer than the snapshot apply on start.
+dbs:
+  - path: /data/ore.db
+    replicas:
+      - type: s3
+        bucket: ${ORE_LITESTREAM_BUCKET}
+        path: ore/ore.db
+        region: ${ORE_LITESTREAM_REGION}
+        endpoint: ${ORE_LITESTREAM_ENDPOINT}
+        retention: 72h
+        sync-interval: 10s

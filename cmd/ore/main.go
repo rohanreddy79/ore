@@ -7,14 +7,12 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -26,14 +24,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/orevcs/ore/internal/agent"
-	"github.com/orevcs/ore/internal/delivery"
-	"github.com/orevcs/ore/internal/githttp"
-	"github.com/orevcs/ore/internal/gitx"
 	"github.com/orevcs/ore/internal/ledger"
-	"github.com/orevcs/ore/internal/pipelines"
-	"github.com/orevcs/ore/internal/registry"
-	"github.com/orevcs/ore/internal/review"
 	"github.com/orevcs/ore/internal/web"
 
 	// Feature slices wire themselves in through internal/registry.
@@ -62,6 +53,16 @@ func main() {
 		err = runServe(args)
 	case "demo":
 		err = runDemo(args)
+	case "migrate":
+		err = runMigrate(args, os.Stdout)
+	case "doctor":
+		err = runDoctor(args, os.Stdout)
+	case "config":
+		err = runConfig(args, os.Stdout)
+	case "backup":
+		err = runBackup(args, os.Stdout)
+	case "restore":
+		err = runRestore(args, os.Stdout)
 	case "version":
 		fmt.Printf("ore %s\n", version)
 	case "help", "-h", "--help":
@@ -74,7 +75,9 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "ore:", err)
+		if !errors.Is(err, errDoctorFailed) {
+			fmt.Fprintln(os.Stderr, "ore:", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -83,8 +86,16 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `ore — the open, autonomous software forge (v0)
 
 server
-  ore serve [--data DIR] [--addr :7777] [--token T] [--executor docker|host|none] [--agent-cmd CMD]
+  ore serve [--data DIR] [--addr :7777] [--db URL] [--token T] [--executor docker|host|none] [--agent-cmd CMD]
+            [--log-format text|json] [--log-level info] [--backup-to DIR|s3://bucket/prefix] [--backup-interval 24h] [--drain-timeout 30s]
   ore demo  [--executor docker|host] [--exit]          run the whole loop on a sample repository
+
+operations (ORE_DATA, ORE_DB_URL or --data/--db)
+  ore migrate [status|apply]                           show or apply the embedded migrations (SQLite or Postgres)
+  ore doctor                                           check git, docker, ports, data directory, database, disk
+  ore config                                           print the effective configuration (secrets redacted)
+  ore backup --to DIR|s3://bucket/prefix               ledger copy and dump, git bundles, token and keys, manifest
+  ore restore --from DIR [--data DIR] [--db URL]       rebuild an empty data directory from a backup
 
 client (ORE_URL, ORE_TOKEN or --url/--token)
   ore org create NAME | org list
@@ -100,92 +111,7 @@ client (ORE_URL, ORE_TOKEN or --url/--token)
   ore version`)
 }
 
-// ---------- serve ----------
-
-func runServe(args []string) error {
-	fl := parseFlags(args)
-	data := fl.str("data", envOr("ORE_DATA", "ore-data"))
-	addr := fl.str("addr", envOr("ORE_ADDR", ":7777"))
-	executor := fl.str("executor", envOr("ORE_EXECUTOR", "docker"))
-	agentCmd := fl.str("agent-cmd", os.Getenv("ORE_AGENT_CMD"))
-	agentName := fl.str("agent-name", envOr("ORE_AGENT_NAME", "claude-code"))
-	publicHost := fl.str("public-host", envOr("ORE_PUBLIC_HOST", "localhost"))
-	baseURL := fl.str("base-url", os.Getenv("ORE_BASE_URL"))
-	quiet := fl.bool("quiet")
-
-	if err := os.MkdirAll(data, 0o755); err != nil {
-		return err
-	}
-	token, err := loadOrCreateToken(fl.str("token", os.Getenv("ORE_TOKEN")), filepath.Join(data, "token"))
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	db, err := ledger.Open(ctx, filepath.Join(data, "ore.db"))
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	backend, err := gitx.HTTPBackendPath(ctx)
-	if err != nil {
-		return err
-	}
-	reposDir, logsDir := filepath.Join(data, "repos"), filepath.Join(data, "logs")
-	if err := os.MkdirAll(reposDir, 0o755); err != nil {
-		return err
-	}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if baseURL == "" {
-		host, port, _ := net.SplitHostPort(addr)
-		if host == "" || host == "0.0.0.0" || host == "::" {
-			host = publicHost
-		}
-		baseURL = "http://" + net.JoinHostPort(host, port)
-	}
-	srv := &web.Server{
-		DB: db, ReposDir: reposDir, LogsDir: logsDir, Token: token, BaseURL: baseURL, Log: logger,
-		Git:      &githttp.Handler{DB: db, ReposDir: reposDir, Backend: backend, Log: logger},
-		Runner:   &pipelines.Runner{DB: db, ReposDir: reposDir, LogsDir: logsDir, Executor: executor},
-		Deployer: &delivery.Deployer{DB: db, ReposDir: reposDir, Executor: deployExecutor(executor), PublicHost: publicHost},
-		Review:   &review.Service{DB: db, ReposDir: reposDir},
-	}
-	srv.Loop = &agent.Loop{DB: db, ReposDir: reposDir, LogsDir: logsDir, Runner: srv.Runner, Deployer: srv.Deployer, Review: srv.Review, AdapterCmd: agentCmd, AdapterName: agentName}
-	srv.Services = map[string]any{}
-	extCtx, cancelExts := context.WithCancel(ctx)
-	defer cancelExts()
-	if err := registry.Apply(extCtx, srv); err != nil {
-		return fmt.Errorf("extensions: %w", err)
-	}
-
-	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-	if !quiet {
-		fmt.Fprintf(os.Stderr, "ore %s serving on %s\n  data:     %s\n  executor: %s (pipelines) / %s (deployments)\n  agent:    %s\n  features: %s\n  ui:       %s/login?token=%s\n  api:      %s/api/v0  (Authorization: Bearer %s)\n  git:      git clone %s/<org>/<repo>.git  (user: anything, password: the token)\n",
-			version, ln.Addr(), data, executor, deployExecutor(executor), agentName, strings.Join(registry.Names(), ", "), baseURL, token, baseURL, token, baseURL)
-	}
-	go func() {
-		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-		<-stop
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		httpSrv.Shutdown(ctx)
-	}()
-	if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
-}
-
-func deployExecutor(pipelineExecutor string) string {
-	if pipelineExecutor == "docker" {
-		return "docker"
-	}
-	return "none"
-}
+// ---------- serve: see serve.go ----------
 
 func loadOrCreateToken(given, path string) (string, error) {
 	if given != "" {

@@ -1,0 +1,35 @@
+# systemd unit for a single-host Ore (solo or team profile).
+#   sudo useradd --system --home /var/lib/ore --create-home ore
+#   sudo install -m 0755 ore /usr/local/bin/ore
+#   sudo install -m 0644 deploy/systemd/ore.service /etc/systemd/system/ore.service
+#   sudo install -d -m 0750 -o ore /etc/ore && sudoedit /etc/ore/ore.env   # ORE_TOKEN, ORE_DB_URL, ORE_BACKUP_TO ...
+#   sudo systemctl enable --now ore
+# The ore user must be in the docker group for container pipelines and deployments.
+[Unit]
+Description=Ore: the agent-first software forge
+Documentation=https://github.com/orevcs/ore
+After=network-online.target docker.service postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ore
+Group=ore
+EnvironmentFile=-/etc/ore/ore.env
+Environment=ORE_DATA=/var/lib/ore ORE_ADDR=:7777 ORE_LOG_FORMAT=json
+ExecStartPre=/usr/local/bin/ore doctor
+ExecStart=/usr/local/bin/ore serve
+# graceful: ore drains running pipelines and agent runs for ORE_DRAIN_TIMEOUT (30s) before exiting
+KillSignal=SIGTERM
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=3
+WorkingDirectory=/var/lib/ore
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

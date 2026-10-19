@@ -1,24 +1,70 @@
-# Solo/team profile: one container for Ore (git, API, UI, pipelines control plane, agent loop)
-# and the Docker socket for container pipelines and deployments. v0 has no Forgejo or Postgres:
-# the repository core is native (ADR 0013) and the ledger is SQLite on a volume.
+# Solo and team profiles: one container for Ore (git, API, UI, pipelines control
+# plane, agent loop) with the Docker socket for container pipelines and
+# deployments. The ledger is SQLite on the data volume by default; set
+# COMPOSE_PROFILES=postgres and ORE_DB_URL=postgres://ore:ore@postgres:5432/ore?sslmode=disable
+# for the team profile.
 #
-# Build the image from this repository first:  docker build -t ore:local -f deploy/Dockerfile .
+# Build the image first:  docker build -t ore:local -f deploy/Dockerfile .
+# Backups: ORE_BACKUP_TO=/backups writes a timestamped backup every ORE_BACKUP_INTERVAL
+# into the ore-backups volume and keeps the newest ORE_BACKUP_KEEP.
 
 name: ore
 
 services:
   ore:
     image: ore:local
-    command: ["serve", "--data", "/data", "--addr", ":7777", "--executor", "docker", "--public-host", "${ORE_PUBLIC_HOST:-localhost}"]
+    command: ["serve", "--executor", "docker", "--public-host", "${ORE_PUBLIC_HOST:-localhost}"]
     environment:
       ORE_TOKEN: ${ORE_TOKEN:-}                 # leave empty to generate one (printed on first start, stored in /data/token)
       ORE_AGENT_CMD: ${ORE_AGENT_CMD:-}         # e.g. claude -p "$ORE_PROMPT" --permission-mode acceptEdits
       ORE_AGENT_NAME: ${ORE_AGENT_NAME:-claude-code}
+      ORE_DB_URL: ${ORE_DB_URL:-}               # empty: SQLite at /data/ore.db
+      ORE_LOG_FORMAT: ${ORE_LOG_FORMAT:-json}
+      ORE_LOG_LEVEL: ${ORE_LOG_LEVEL:-info}
+      ORE_BACKUP_TO: ${ORE_BACKUP_TO:-/backups}
+      ORE_BACKUP_INTERVAL: ${ORE_BACKUP_INTERVAL:-24h}
+      ORE_BACKUP_KEEP: ${ORE_BACKUP_KEEP:-7}
     ports:
       - "7777:7777"
     volumes:
       - ore-data:/data
+      - ore-backups:/backups
       - /var/run/docker.sock:/var/run/docker.sock   # pipelines and deployments run as sibling containers
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: ore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ore}
+      POSTGRES_DB: ore
+    volumes:
+      - ore-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ore -d ore"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Continuous SQLite replication to S3 for the solo profile (see deploy/litestream.yml).
+  litestream:
+    image: litestream/litestream:0.3
+    profiles: ["litestream"]
+    command: ["replicate", "-config", "/etc/litestream.yml"]
+    environment:
+      LITESTREAM_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      LITESTREAM_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      ORE_LITESTREAM_BUCKET: ${ORE_LITESTREAM_BUCKET:-}
+      ORE_LITESTREAM_REGION: ${AWS_REGION:-us-east-1}
+      ORE_LITESTREAM_ENDPOINT: ${AWS_ENDPOINT_URL:-}
+    volumes:
+      - ore-data:/data
+      - ../litestream.yml:/etc/litestream.yml:ro
+    restart: unless-stopped
 
 volumes:
   ore-data:
+  ore-backups:
+  ore-postgres:
