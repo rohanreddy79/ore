@@ -1,0 +1,53 @@
+{
+  "action": "synchronize",
+  "number": 7,
+  "before": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432",
+  "after": "aa11bb22cc33dd44ee55ff6677889900aabbccdd",
+  "pull_request": {
+    "url": "https://api.github.com/repos/octo/app/pulls/7",
+    "id": 2345678901,
+    "html_url": "https://github.com/octo/app/pull/7",
+    "number": 7,
+    "state": "open",
+    "locked": false,
+    "title": "Retry uploads with exponential backoff",
+    "user": {"login": "octocat", "id": 1, "type": "User"},
+    "body": "Fixes #42.\n\nThe uploader now retries up to five times with jittered backoff.",
+    "created_at": "2026-10-18T10:00:00Z",
+    "updated_at": "2026-10-18T11:30:00Z",
+    "closed_at": null,
+    "merged_at": null,
+    "merge_commit_sha": "c0ffee0000000000000000000000000000000001",
+    "draft": false,
+    "head": {
+      "label": "octocat:feature/retry",
+      "ref": "feature/retry",
+      "sha": "aa11bb22cc33dd44ee55ff6677889900aabbccdd",
+      "repo": {"id": 1296269, "name": "app", "full_name": "octo/app", "owner": {"login": "octo"}}
+    },
+    "base": {
+      "label": "octo:main",
+      "ref": "main",
+      "sha": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+      "repo": {"id": 1296269, "name": "app", "full_name": "octo/app", "owner": {"login": "octo"}}
+    },
+    "merged": false,
+    "mergeable": true,
+    "mergeable_state": "clean",
+    "commits": 2,
+    "additions": 40,
+    "deletions": 6,
+    "changed_files": 2
+  },
+  "repository": {
+    "id": 1296269,
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main"
+  },
+  "sender": {"login": "octocat", "id": 1, "type": "User"}
+}

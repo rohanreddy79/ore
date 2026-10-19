@@ -1,0 +1,24 @@
+{
+  "ref": "refs/heads/feature/retry",
+  "before": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432",
+  "after": "0000000000000000000000000000000000000000",
+  "repository": {
+    "id": 1296269,
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"name": "octo", "login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main"
+  },
+  "pusher": {"name": "octocat", "email": "octocat@github.com"},
+  "sender": {"login": "octocat", "id": 1, "type": "User"},
+  "created": false,
+  "deleted": true,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/octo/app/compare/9f8e7d6c5b4a...000000000000",
+  "commits": [],
+  "head_commit": null
+}

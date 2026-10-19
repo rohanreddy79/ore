@@ -1,0 +1,32 @@
+{
+  "action": "edited",
+  "changes": {"title": {"from": "Fix the flaky retry in the uploader"}},
+  "issue": {
+    "url": "https://api.github.com/repos/octo/app/issues/42",
+    "html_url": "https://github.com/octo/app/issues/42",
+    "id": 2765432109,
+    "number": 42,
+    "title": "Fix the flaky retry in the uploader (timeouts)",
+    "user": {"login": "octocat", "id": 1, "type": "User"},
+    "labels": [],
+    "state": "open",
+    "locked": false,
+    "comments": 1,
+    "created_at": "2026-10-18T09:15:00Z",
+    "updated_at": "2026-10-18T09:40:00Z",
+    "closed_at": null,
+    "body": "The uploader retries once and gives up. The timeout is 100 ms, the server answers in 150 ms under load.",
+    "state_reason": null
+  },
+  "repository": {
+    "id": 1296269,
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main"
+  },
+  "sender": {"login": "octocat", "id": 1, "type": "User"}
+}

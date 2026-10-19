@@ -1,0 +1,23 @@
+{
+  "action": "labeled",
+  "label": {"id": 208045946, "name": "bug", "color": "d73a4a"},
+  "issue": {
+    "html_url": "https://github.com/octo/app/issues/42",
+    "id": 2765432109,
+    "number": 42,
+    "title": "Fix the flaky retry in the uploader",
+    "user": {"login": "octocat", "id": 1, "type": "User"},
+    "state": "open",
+    "body": "The uploader retries once and gives up.",
+    "state_reason": null
+  },
+  "repository": {
+    "id": 1296269,
+    "name": "app",
+    "full_name": "octo/app",
+    "owner": {"login": "octo", "id": 583231, "type": "Organization"},
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main"
+  },
+  "sender": {"login": "octocat", "id": 1, "type": "User"}
+}

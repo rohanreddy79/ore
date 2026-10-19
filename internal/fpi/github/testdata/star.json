@@ -1,0 +1,16 @@
+{
+  "action": "created",
+  "starred_at": "2026-10-18T12:30:00Z",
+  "repository": {
+    "id": 1296269,
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main",
+    "stargazers_count": 1
+  },
+  "sender": {"login": "hubot", "id": 480938, "type": "User"}
+}

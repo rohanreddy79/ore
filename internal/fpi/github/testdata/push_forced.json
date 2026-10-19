@@ -1,0 +1,42 @@
+{
+  "ref": "refs/heads/feature/retry",
+  "before": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432",
+  "after": "aa11bb22cc33dd44ee55ff6677889900aabbccdd",
+  "repository": {
+    "id": 1296269,
+    "name": "app",
+    "full_name": "octo/app",
+    "private": false,
+    "owner": {"name": "octo", "login": "octo", "id": 583231, "type": "Organization"},
+    "html_url": "https://github.com/octo/app",
+    "clone_url": "https://github.com/octo/app.git",
+    "default_branch": "main"
+  },
+  "pusher": {"name": "octocat", "email": "octocat@github.com"},
+  "sender": {"login": "octocat", "id": 1, "type": "User"},
+  "created": false,
+  "deleted": false,
+  "forced": true,
+  "base_ref": null,
+  "compare": "https://github.com/octo/app/compare/9f8e7d6c5b4a...aa11bb22cc33",
+  "commits": [
+    {
+      "id": "aa11bb22cc33dd44ee55ff6677889900aabbccdd",
+      "distinct": true,
+      "message": "Retry with backoff (rewritten)",
+      "timestamp": "2026-10-18T11:30:00+02:00",
+      "author": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+      "committer": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+      "added": [], "removed": [], "modified": ["uploader.go"]
+    }
+  ],
+  "head_commit": {
+    "id": "aa11bb22cc33dd44ee55ff6677889900aabbccdd",
+    "distinct": true,
+    "message": "Retry with backoff (rewritten)",
+    "timestamp": "2026-10-18T11:30:00+02:00",
+    "author": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+    "committer": {"name": "Octo Cat", "email": "octocat@github.com", "username": "octocat"},
+    "added": [], "removed": [], "modified": ["uploader.go"]
+  }
+}
