@@ -18,3 +18,22 @@ Shared rules:
 - Tests: unit tests per file, an httptest end-to-end test per feature, and an explicit edge-case test list in the slice's `docs/changes/<slice>.md`.
 - Do not edit `docs/09-roadmap.md`, `README.md` or another slice's files; describe what landed in `docs/changes/<slice>.md`.
 - Commit on your branch with `git commit -s` (DCO) and descriptive messages; do not push (there is no remote yet); do not merge into `main`.
+
+## Wave 1 (merged into `main` on 2026-10-18)
+
+All six slices merged; one integration fix followed (change comments live in the review store, the gateway keeps issue comments). `scripts/e2e.sh` passes on the merged `main`. Hand-over notes: `mcp-gateway.md`, `github-adapter.md`, `identity-ssh.md`, `pipelines-actions.md`, `delivery-envs.md`, `review-v1.md`.
+
+## Wave 2: ownership map
+
+Same rules as wave 1. Wave 2 branches from the merged `main`; the services from wave 1 are available on `web.Server` (`s.Services["gateway"]`, `s.Services["identity"]`, `s.Services["review.landing"]`, `s.Services["review.v1"]`, delivery environments under `internal/delivery/environments`, pipelines actions and secrets under `internal/pipelines`).
+
+| Slice | Branch | Owns | Migration file | Registers as |
+|---|---|---|---|---|
+| Agent fleet: roles, adversarial review, watchers, budgets, evidence-based autonomy levels, landing by level | `slice/agent-fleet` | `internal/agent/fleet/` (new), new files in `internal/agent/` (existing `agent.go`: additive edits only, exported API unchanged) | `0008_fleet.sql` | `agent.fleet` |
+| Learning engine: lessons as pipelines, lesson runs, learn-at-the-error, first track | `slice/learn` | `internal/learn/`, `lessons/` | `0009_learn.sql` | `learn` |
+| Web UI v1: pages for everything wave 1 added, live logs over SSE, ledger filters | `slice/ui-v1` | `internal/web/templates.go`, new `internal/web/ui_*.go` files, additive edits to `internal/web/web.go` (this slice alone may edit `web.go`) | none | n/a (part of web) |
+| Webhooks out: CloudEvents over Standard Webhooks from the ledger, retry, replay, delivery dashboard; audit export | `slice/webhooks` | `internal/connect/webhooks/` | `0010_webhooks.sql` | `connect.webhooks` |
+| Operations: Postgres profile, backups and restore, release packaging, install script, `ore migrate`/`backup` commands | `slice/ops` | `internal/ledger/ledger.go` and existing migration SQL files (compatibility edits only), `internal/ledger/pg/` (new), `deploy/`, `scripts/release.sh`, `cmd/ore/main.go` (this slice alone may edit `main.go`) | none new | n/a |
+| GitHub importer with fidelity report (follow-up in the GitHub adapter session) | `slice/github-import` | new files in `internal/fpi/github/` | `0011_github_import.sql` | `fpi.github` (existing) |
+
+Routes: every slice mounts under its own prefix (`/api/v0/fleet/`, `/api/v0/learn/`, `/api/v0/webhooks/`, `/api/v0/repos/{org}/{name}/import/`) so patterns cannot collide; the UI slice owns the HTML routes.
