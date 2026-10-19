@@ -12,13 +12,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/orevcs/ore/internal/agent"
 	"github.com/orevcs/ore/internal/delivery"
@@ -54,6 +54,11 @@ type Server struct {
 	Services map[string]any
 
 	routes []func(mux *http.ServeMux)
+	// root is the handler Handler built; UI forms dispatch to the slices' own
+	// API routes through it in-process (see ui_core.go).
+	root http.Handler
+	// StreamInterval is the poll interval of the SSE streams (500 ms unless a test shortens it).
+	StreamInterval time.Duration
 }
 
 // AddRoutes registers a function that mounts routes on the server's mux.
@@ -626,12 +631,13 @@ func (s *Server) Handler() http.Handler {
 		return respond(w, err, evs)
 	})
 
-	s.uiRoutes(mux)
+	s.mountStreams(mux)
+	s.mountUI(mux)
 	for _, fn := range s.routes {
 		fn(mux)
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	root := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// git smart HTTP: /{org}/{repo}.git/...
 		if s.Git != nil && strings.Contains(r.URL.Path, ".git/") {
 			s.Git.ServeHTTP(w, r)
@@ -639,6 +645,8 @@ func (s *Server) Handler() http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	})
+	s.root = root
+	return root
 }
 
 func (s *Server) runQueued(repo ledger.Repo, run ledger.PipelineRun, a ledger.Actor) {
@@ -719,257 +727,4 @@ func serveLog(w http.ResponseWriter, path string) error {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(b)
 	return nil
-}
-
-// ---- UI ----
-
-type diffLine struct {
-	Class template.HTMLAttr
-	Text  string
-}
-
-func (s *Server) uiRoutes(mux *http.ServeMux) {
-	ui := func(pattern string, fn func(w http.ResponseWriter, r *http.Request, actor ledger.Actor) error) {
-		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			actor := s.authenticate(r)
-			if actor == nil {
-				http.Error(w, "Sign in by visiting /login?token=<your token> (printed by `ore serve`).", http.StatusUnauthorized)
-				return
-			}
-			if err := fn(w, r, *actor); err != nil {
-				if errors.Is(err, ledger.ErrNotFound) {
-					http.NotFound(w, r)
-					return
-				}
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		})
-	}
-	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
-		if a := s.authenticate(r); a == nil {
-			http.Error(w, "invalid token", http.StatusUnauthorized)
-			return
-		}
-		http.SetCookie(w, &http.Cookie{Name: "ore_token", Value: r.URL.Query().Get("token"), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
-		http.Redirect(w, r, "/", http.StatusFound)
-	})
-	ui("GET /{$}", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repos, err := s.DB.Repos(r.Context(), "")
-		if err != nil {
-			return err
-		}
-		evs, _ := s.DB.Events(r.Context(), ledger.EventsOptions{Limit: 1000})
-		if len(evs) > 25 {
-			evs = evs[len(evs)-25:]
-		}
-		for i, j := 0, len(evs)-1; i < j; i, j = i+1, j-1 {
-			evs[i], evs[j] = evs[j], evs[i]
-		}
-		return tmpl.ExecuteTemplate(w, "index", map[string]any{"Title": "Repositories", "Repos": repos, "Events": evs})
-	})
-	ui("GET /events", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		evs, err := s.DB.Events(r.Context(), ledger.EventsOptions{Limit: 1000})
-		if err != nil {
-			return err
-		}
-		for i, j := 0, len(evs)-1; i < j; i, j = i+1, j-1 {
-			evs[i], evs[j] = evs[j], evs[i]
-		}
-		return tmpl.ExecuteTemplate(w, "events", map[string]any{"Title": "Ledger", "Events": evs})
-	})
-	ui("GET /{org}/{name}", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		issues, _ := s.DB.Issues(r.Context(), repo)
-		changes, _ := s.DB.Changes(r.Context(), repo)
-		runs, _ := s.DB.PipelineRuns(r.Context(), repo, 20)
-		deps, _ := s.DB.Deployments(r.Context(), repo, 20)
-		aruns, _ := s.DB.AgentRuns(r.Context(), repo, 20)
-		oi, oc := 0, 0
-		for _, i := range issues {
-			if i.State == "open" {
-				oi++
-			}
-		}
-		for _, c := range changes {
-			if c.State == "open" {
-				oc++
-			}
-		}
-		return tmpl.ExecuteTemplate(w, "repo", map[string]any{"Title": repo.Org + "/" + repo.Name, "Repo": repo, "Levels": Levels, "BaseURL": s.BaseURL,
-			"Issues": issues, "Changes": changes, "Runs": runs, "Deployments": deps, "AgentRuns": aruns, "OpenIssues": oi, "OpenChanges": oc})
-	})
-	ui("GET /{org}/{name}/changes/{n}", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		ch, err := s.DB.Change(r.Context(), repo, atoi(r.PathValue("n")))
-		if err != nil {
-			return err
-		}
-		diff, _ := s.Review.Diff(r.Context(), repo, ch)
-		var lines []diffLine
-		for _, l := range strings.Split(diff, "\n") {
-			cls := ""
-			switch {
-			case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"), strings.HasPrefix(l, "diff "), strings.HasPrefix(l, "index "), strings.HasPrefix(l, "@@"):
-				cls = "h"
-			case strings.HasPrefix(l, "+"):
-				cls = "a"
-			case strings.HasPrefix(l, "-"):
-				cls = "d"
-			}
-			lines = append(lines, diffLine{Class: template.HTMLAttr(cls), Text: l})
-		}
-		all, _ := s.DB.PipelineRuns(r.Context(), repo, 200)
-		var runs []ledger.PipelineRun
-		for _, p := range all {
-			if p.ChangeID != nil && *p.ChangeID == ch.ID {
-				runs = append(runs, p)
-			}
-		}
-		return tmpl.ExecuteTemplate(w, "change", map[string]any{"Title": fmt.Sprintf("Change #%d", ch.Number), "Repo": repo, "Change": ch, "DiffLines": lines, "Runs": runs})
-	})
-	ui("GET /{org}/{name}/runs/{id}", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		run, err := s.DB.PipelineRun(r.Context(), r.PathValue("id"))
-		if err != nil {
-			return err
-		}
-		log, _ := os.ReadFile(run.LogPath)
-		return tmpl.ExecuteTemplate(w, "log", map[string]any{"Title": "Pipeline run " + run.ID, "Repo": repo, "Status": run.Status, "Log": string(log)})
-	})
-	ui("GET /{org}/{name}/agent/{id}", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		run, err := s.DB.AgentRun(r.Context(), r.PathValue("id"))
-		if err != nil {
-			return err
-		}
-		log, _ := os.ReadFile(run.LogPath)
-		return tmpl.ExecuteTemplate(w, "log", map[string]any{"Title": "Agent run " + run.ID, "Repo": repo, "Status": run.Status, "Error": run.Error, "Log": string(log)})
-	})
-
-	// form actions
-	back := func(w http.ResponseWriter, r *http.Request, repo ledger.Repo) {
-		http.Redirect(w, r, "/"+repo.Org+"/"+repo.Name, http.StatusSeeOther)
-	}
-	ui("POST /ui/{org}/{name}/level", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		if err := s.DB.SetAutonomyLevel(r.Context(), repo, atoi(r.FormValue("level")), r.FormValue("reason"), a); err != nil {
-			return err
-		}
-		back(w, r, repo)
-		return nil
-	})
-	ui("POST /ui/{org}/{name}/issues", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		if t := strings.TrimSpace(r.FormValue("title")); t != "" {
-			if _, err := s.DB.CreateIssue(r.Context(), repo, t, r.FormValue("body"), a); err != nil {
-				return err
-			}
-		}
-		back(w, r, repo)
-		return nil
-	})
-	ui("POST /ui/{org}/{name}/agent", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		req := agent.Request{Prompt: r.FormValue("prompt")}
-		if n := r.FormValue("issue"); n != "" {
-			issue, err := s.DB.Issue(r.Context(), repo, atoi(n))
-			if err != nil {
-				return err
-			}
-			req.Issue = &issue
-		}
-		if req.Issue == nil && strings.TrimSpace(req.Prompt) == "" {
-			back(w, r, repo)
-			return nil
-		}
-		if _, err := s.Loop.Start(r.Context(), repo, req, a); err != nil {
-			return err
-		}
-		back(w, r, repo)
-		return nil
-	})
-	ui("POST /ui/{org}/{name}/runs", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		oid, err := gitx.RevParse(r.Context(), s.repoPath(repo), r.FormValue("ref"))
-		if err != nil {
-			return err
-		}
-		go s.Runner.Run(context.Background(), repo, oid, nil, a)
-		back(w, r, repo)
-		return nil
-	})
-	ui("POST /ui/{org}/{name}/changes/{n}/merge", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		ch, err := s.DB.Change(r.Context(), repo, atoi(r.PathValue("n")))
-		if err != nil {
-			return err
-		}
-		if _, err := s.Review.Merge(r.Context(), repo, ch, a); err != nil {
-			return err
-		}
-		http.Redirect(w, r, fmt.Sprintf("/%s/%s/changes/%d", repo.Org, repo.Name, ch.Number), http.StatusSeeOther)
-		return nil
-	})
-	ui("POST /ui/{org}/{name}/changes/{n}/verify", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		ch, err := s.DB.Change(r.Context(), repo, atoi(r.PathValue("n")))
-		if err != nil {
-			return err
-		}
-		go s.Runner.Run(context.Background(), repo, ch.HeadOID, &ch.ID, a)
-		http.Redirect(w, r, fmt.Sprintf("/%s/%s/changes/%d", repo.Org, repo.Name, ch.Number), http.StatusSeeOther)
-		return nil
-	})
-	ui("POST /ui/{org}/{name}/deploy", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		oid, err := gitx.RevParse(r.Context(), s.repoPath(repo), r.FormValue("ref"))
-		if err != nil {
-			return err
-		}
-		go s.Deployer.Deploy(context.Background(), repo, oid, r.FormValue("environment"), a, nil)
-		back(w, r, repo)
-		return nil
-	})
-	ui("POST /ui/{org}/{name}/rollback", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
-		repo, err := s.repo(r)
-		if err != nil {
-			return err
-		}
-		go s.Deployer.Rollback(context.Background(), repo, r.FormValue("environment"), a)
-		back(w, r, repo)
-		return nil
-	})
 }

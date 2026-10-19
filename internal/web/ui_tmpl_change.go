@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package web
+
+// The change page: patch sets, interdiff, diff, comment lanes, reviews,
+// approvals, landing and stacks.
+const tmplChange = `
+{{define "change"}}{{template "head" .}}
+<h1>Change #{{.Change.Number}}: {{.Change.Title}} {{template "status" .Change.State}}</h1>
+<p class="mut">change-id <code>{{.Change.ChangeID}}</code> · <code>{{.Change.SourceRef}}</code> → <code>{{.Change.TargetRef}}</code> · base <code>{{short .Change.BaseOID}}</code> head <code>{{short .Change.HeadOID}}</code>{{if .Change.MergeOID}} · merged as <code>{{short (deref .Change.MergeOID)}}</code>{{end}} · opened {{.Change.CreatedAt}}</p>
+{{with .Provenance}}<dl class="kv">{{range .}}<dt>{{.Key}}</dt><dd><code>{{.Value}}</code></dd>{{end}}</dl>{{end}}
+{{if .Change.Body}}<div class="comment"><div class="body">{{.Change.Body}}</div></div>{{end}}
+{{with .Approvals}}<div class="card"><b style="font-size:16px">{{if .Landable}}<span class="ok">Landable</span>{{else}}<span class="warn">Not landable</span>{{end}}</b><span class="mut">patch set {{.PatchSet}} · {{.Approvals}} of {{.Required}} required approvals{{range .Approvers}} · {{.Kind}}/{{.ID}}{{end}}{{if .ChangesRequestedBy}} · changes requested by {{range .ChangesRequestedBy}}{{.Kind}}/{{.ID}} {{end}}{{end}}{{if .Reason}} · {{.Reason}}{{end}}</span>{{range .Ignored}}<div class="mut">ignored: {{.Reviewer.Kind}}/{{.Reviewer.ID}} ({{.Reason}})</div>{{end}}</div>{{end}}
+{{if eq .Change.State "open"}}<div class="row">
+<form method="post" action="/ui/{{.Repo.Org}}/{{.Repo.Name}}/changes/{{.Change.Number}}/land" class="inline">{{template "csrf" .CSRF}}<label for="strategy" class="mut">Land with</label> <select id="strategy" name="strategy">{{range .Strategies}}<option{{if and $.Policy (eq . $.Policy.DefaultStrategy)}} selected{{end}}>{{.}}</option>{{end}}</select> <button type="submit" class="primary">Land</button></form>
+<form method="post" action="/ui/{{.Repo.Org}}/{{.Repo.Name}}/changes/{{.Change.Number}}/verify" class="inline">{{template "csrf" .CSRF}}<button type="submit">Run pipeline on head</button></form>
+<form method="post" action="/ui/{{.Repo.Org}}/{{.Repo.Name}}/changes/{{.Change.Number}}/close" class="inline">{{template "csrf" .CSRF}}<button type="submit" class="danger">Close without merging</button></form></div>
+<p class="mut">queue: policy check then merge · land_when_green: merge when the head's pipeline is green · optimistic: merge now, verify the merge, revert automatically if red.</p>{{end}}
+<h2>Patch sets ({{len .PatchSets}})</h2>
+{{if .PatchSets}}<div class="tbl"><table><thead><tr><th>Patch set</th><th>Base</th><th>Head</th><th>Pushed by</th><th>When</th></tr></thead><tbody>{{range .PatchSets}}<tr><td><a href="?ps={{.Number}}"{{if and $.Selected (eq $.Selected.Number .Number)}} aria-current="true"{{end}}>{{if and $.Selected (eq $.Selected.Number .Number)}}<b>PS{{.Number}}</b>{{else}}PS{{.Number}}{{end}}</a></td><td><code>{{short .BaseOID}}</code></td><td><code>{{short .HeadOID}}</code></td><td>{{template "actor" .PushedBy}}</td><td class="mut">{{.CreatedAt}}</td></tr>{{end}}</tbody></table></div>
+{{if gt (len .PatchSets) 1}}<form method="get" action="" class="row"><label for="from" class="mut">Interdiff from</label><select id="from" name="from">{{range .PatchSets}}<option value="{{.Number}}"{{if eq .Number $.From}} selected{{end}}>PS{{.Number}}</option>{{end}}</select><label for="to" class="mut">to</label><select id="to" name="to">{{range .PatchSets}}<option value="{{.Number}}"{{if eq .Number $.To}} selected{{end}}>PS{{.Number}}</option>{{end}}</select>{{if .Selected}}<input type="hidden" name="ps" value="{{.Selected.Number}}">{{end}} <button type="submit">Show interdiff</button></form>{{end}}
+{{else}}<p class="mut">No patch sets recorded for this change yet; the diff below is base…head.</p>{{end}}
+{{if .InterdiffError}}<p class="flash bad">Interdiff: {{.InterdiffError}}</p>{{end}}
+{{with .Interdiff}}<h2>Interdiff PS{{.From.Number}} → PS{{.To.Number}} <span class="mut">{{$.InterdiffStats}}</span></h2>
+{{if .Identical}}<p class="mut">The two patch sets are identical.</p>{{else}}{{if .Rebased}}<p class="mut">Rebased: the base changed between the patch sets; the base's own changes are factored out.</p>{{end}}{{if .Note}}<p class="mut">{{.Note}}</p>{{end}}{{$.InterdiffHTML}}{{end}}{{end}}
+<h2>Diff{{with .Selected}} of PS{{.Number}}{{end}} <span class="mut">{{.DiffStats}}</span></h2>
+{{if .DiffError}}<p class="flash bad">{{.DiffError}}</p>{{end}}
+{{.Diff}}
+<h2>Comments ({{.CommentCount}})</h2>
+{{range .Lanes}}<details class="lane"{{if .Open}} open{{end}}><summary>{{.Name}} lane ({{len .Comments}})</summary>
+{{range .Comments}}<div class="comment" id="c-{{.ID}}"><div class="meta">{{template "actor" .Author}}<span>{{.CreatedAt}}</span><span>PS{{.PatchSet}}</span>{{if .Path}}<code>{{.Path}}{{if .StartLine}}:{{deref_int .StartLine}}{{if .EndLine}}–{{deref_int .EndLine}}{{end}}{{end}}</code>{{end}}{{if .Outdated}}<span class="pill warn">outdated</span>{{else if .Anchor}}<span class="mut">now PS{{.Anchor.PatchSet}}:{{.Anchor.StartLine}}</span>{{end}}{{if .Resolved}}<span class="pill ok">resolved</span>{{end}}
+<form method="post" action="/ui/{{$.Repo.Org}}/{{$.Repo.Name}}/changes/{{$.Change.Number}}/comments/{{.ID}}/resolve" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="resolved" value="{{if .Resolved}}0{{else}}1{{end}}"><button type="submit">{{if .Resolved}}Reopen{{else}}Resolve{{end}}</button></form></div><div class="body">{{.Body}}</div></div>{{else}}<p class="mut">Nothing in this lane.</p>{{end}}</details>{{end}}
+<form method="post" action="/ui/{{.Repo.Org}}/{{.Repo.Name}}/changes/{{.Change.Number}}/comments" class="stack">{{template "csrf" .CSRF}}
+<label for="cbody">Comment<textarea id="cbody" name="body" required></textarea></label>
+<div class="row"><label for="cpath" class="mut">path</label><input id="cpath" name="path" size="28"> <label for="cstart" class="mut">lines</label><input id="cstart" name="start_line" size="5" inputmode="numeric"> <input aria-label="end line" name="end_line" size="5" inputmode="numeric"> <label for="cps" class="mut">patch set</label><input id="cps" name="patch_set" size="3" inputmode="numeric" placeholder="latest"> <label for="clane" class="mut">lane</label><select id="clane" name="lane"><option value="">mine</option><option>bot</option><option>agent</option></select></div>
+<div><button type="submit">Post comment</button></div></form>
+<h2>Reviews ({{len .Reviews}})</h2>
+{{range .Reviews}}<div class="comment"><div class="meta">{{template "actor" .Reviewer}}<span class="pill">{{.Lane}}</span><span>PS{{.PatchSet}}</span>{{template "status" .Verdict}}{{if .Counts}}<span class="pill ok">counts</span>{{end}}<span>{{.CreatedAt}}</span></div>{{if .Body}}<div class="body">{{.Body}}</div>{{end}}
+{{if .Findings}}<div class="tbl"><table><thead><tr><th>Severity</th><th>Path</th><th>Message</th><th>Confidence</th></tr></thead><tbody>{{range .Findings}}<tr><td><span class="sev-{{.Severity}}">{{.Severity}}</span>{{if .Category}} <span class="mut">{{.Category}}</span>{{end}}</td><td><code>{{.Path}}{{with .Range}}:{{.StartLine}}{{if ne .EndLine .StartLine}}–{{.EndLine}}{{end}}{{end}}</code></td><td>{{.Message}}{{if .SuggestedFix}}<pre>{{.SuggestedFix}}</pre>{{end}}</td><td>{{pct .Confidence}}</td></tr>{{end}}</tbody></table></div>{{end}}</div>{{else}}<p class="mut">No reviews yet.</p>{{end}}
+<form method="post" action="/ui/{{.Repo.Org}}/{{.Repo.Name}}/changes/{{.Change.Number}}/reviews" class="stack">{{template "csrf" .CSRF}}
+<div class="row"><label for="verdict" class="mut">Verdict</label><select id="verdict" name="verdict"><option value="approve">approve</option><option value="request_changes">request changes</option><option value="comment">comment</option></select> <label for="rps" class="mut">patch set</label><input id="rps" name="patch_set" size="3" inputmode="numeric" placeholder="latest"></div>
+<label for="rbody">Summary<textarea id="rbody" name="body"></textarea></label>
+<label for="findings">Findings (JSON array of {"severity","confidence","path","message"}, optional)<textarea id="findings" name="findings" placeholder='[{"severity":"high","confidence":0.9,"path":"main.go","message":"..."}]'></textarea></label>
+<div><button type="submit" class="primary">Submit review</button></div></form>
+{{if .Landings}}<h2>Landings</h2><div class="tbl"><table><thead><tr><th>Attempt</th><th>Strategy</th><th>Status</th><th>Patch set</th><th>Merge</th><th>Verification</th><th>Revert</th><th>Actor</th><th>Error</th></tr></thead><tbody>{{range .Landings}}<tr><td class="mut">{{.CreatedAt}}</td><td>{{.Strategy}}</td><td>{{template "status" .Status}}</td><td>PS{{.PatchSet}}</td><td><code>{{short (deref .MergeOID)}}</code></td><td>{{if .VerificationRunID}}<a href="{{$.RepoPath}}/runs/{{deref .VerificationRunID}}">run</a>{{end}}</td><td><code>{{short (deref .RevertOID)}}</code>{{if .IssueNumber}} <a href="{{$.RepoPath}}/issues/{{deref_int .IssueNumber}}">issue</a>{{end}}</td><td>{{template "actor" .Actor}}</td><td class="mut">{{.Error}}</td></tr>{{end}}</tbody></table></div>{{end}}
+{{if .Stacks}}<h2>Stacks</h2>{{range .Stacks}}<p><a href="{{$.RepoPath}}/stacks/{{.ID}}">stack {{shortid .ID}}</a> {{template "status" .State}} → <code>{{.TargetRef}}</code>: {{range .Changes}}<a href="{{$.RepoPath}}/changes/{{.Number}}"{{if eq .ID $.Change.ID}} aria-current="true"{{end}}>{{if eq .ID $.Change.ID}}<b>#{{.Number}}</b>{{else}}#{{.Number}}{{end}}</a> {{end}}</p>{{end}}{{end}}
+<h2>Verification runs</h2>
+<div class="tbl"><table><thead><tr><th>Run</th><th>Commit</th><th>Status</th><th>Created</th></tr></thead><tbody>{{range .Runs}}<tr><td><a href="{{$.RepoPath}}/runs/{{.ID}}">{{shortid .ID}}</a></td><td><code>{{short .CommitOID}}</code></td><td>{{template "status" .Status}}</td><td class="mut">{{.CreatedAt}}</td></tr>{{else}}<tr><td colspan="4" class="mut">No runs for this change yet.</td></tr>{{end}}</tbody></table></div>
+{{template "foot" .}}{{end}}
+`
