@@ -133,7 +133,7 @@ export function TreeNav({ org, repo, refFull, current, expand, onOpenDir, onOpen
   const rows = useMemo(() => flattenTree(open, pages), [open, pages])
   const boxRef = useRef<HTMLDivElement>(null)
   const boxHeight = height ?? Math.min(rows.length * TREE_ROW + 8, typeof window !== 'undefined' ? Math.max(240, window.innerHeight - 160) : 600)
-  const v = useVirtualizer({ count: rows.length, getScrollElement: () => boxRef.current, estimateSize: () => TREE_ROW, overscan: 20 })
+  const v = useVirtualizer({ count: rows.length, getScrollElement: () => boxRef.current, estimateSize: () => TREE_ROW, overscan: 10 })
   return (
     <div ref={boxRef} style={{ height: boxHeight, overflow: 'auto' }} role="tree" aria-label="Files">
       <div style={{ height: v.getTotalSize(), position: 'relative' }}>
