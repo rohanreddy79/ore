@@ -294,8 +294,14 @@ func TestCommentReviewAndDeployment(t *testing.T) {
 	if len(got) != 2 || got[0].Body != "looking" || got[1].Body != "by id" {
 		t.Fatalf("stored comments %+v", got)
 	}
-	if n := len(f.events(t, EventCommentCreated)); n != 3 {
+	// issue comments are the gateway's; the change comment went to the review store in the agent lane
+	if n := len(f.events(t, EventCommentCreated)); n != 2 {
 		t.Fatalf("comment events %d", n)
+	}
+	ch, _ := f.db.Change(ctx, f.repo, 1)
+	rc, err := f.g.Review.Comments(ctx, f.repo, ch)
+	if err != nil || len(rc) != 1 || rc[0].Body != "nit" || rc[0].Lane != "agent" || rc[0].Author.ID != "bot" {
+		t.Fatalf("review-store comment: %v %+v", err, rc)
 	}
 	resp = f.submit(t, s, f.repo.ID, `{"kind":"comment","target":"issues/99","body":"x"}`, `{"kind":"comment","target":"42","body":"x"}`)
 	if resp.Refused != 2 || resp.Results[0].Code != "bad_target" || resp.Results[1].Code != "bad_target" {

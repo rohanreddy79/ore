@@ -490,6 +490,22 @@ func (g *Gateway) execute(ctx context.Context, repo ledger.Repo, s Session, acto
 		if err != nil {
 			return res, err
 		}
+		if kind == "change" {
+			// Change comments live in the review store (one store, lanes by
+			// actor kind); the gateway's own table holds issue comments only.
+			ch, err := g.DB.Change(ctx, repo, number)
+			if err != nil {
+				return res, err
+			}
+			rc, err := g.Review.PostComment(ctx, repo, ch, review.CommentRequest{Body: req.Body}, actor)
+			if err != nil {
+				return res, err
+			}
+			c := Comment{ID: rc.ID, OrgID: repo.OrgID, RepoID: repo.ID, TargetKind: kind, TargetID: id, TargetNumber: number, Body: rc.Body, Actor: actor, SessionID: s.ID, CreatedAt: rc.CreatedAt}
+			res.Comment = &c
+			res.EventID, err = g.recordExecuted(ctx, nil, repo, s, actor, req.Kind, map[string]any{"comment_id": c.ID, "target_kind": kind, "target": number, "lane": rc.Lane})
+			return res, err
+		}
 		c := Comment{ID: ledger.NewID("cmt"), OrgID: repo.OrgID, RepoID: repo.ID, TargetKind: kind, TargetID: id, TargetNumber: number, Body: req.Body, Actor: actor, SessionID: s.ID, CreatedAt: ledger.Now()}
 		tx, err := g.DB.Begin(ctx)
 		if err != nil {

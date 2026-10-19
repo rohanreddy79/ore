@@ -168,12 +168,10 @@ func (g *Gateway) Routes(s *web.Server) func(mux *http.ServeMux) {
 			}
 			web.JSON(w, code, resp)
 		})
-		// comments written through the gateway, readable by anyone with a token
+		// issue comments written through the gateway, readable by anyone with a
+		// token; change comments are served by review v1 (one store, lanes).
 		mux.HandleFunc("GET /api/v0/repos/{org}/{name}/issues/{n}/comments", func(w http.ResponseWriter, r *http.Request) {
 			g.commentsRoute(s, w, r, "issue")
-		})
-		mux.HandleFunc("GET /api/v0/repos/{org}/{name}/changes/{n}/comments", func(w http.ResponseWriter, r *http.Request) {
-			g.commentsRoute(s, w, r, "change")
 		})
 	}
 }
