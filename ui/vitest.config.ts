@@ -12,5 +12,7 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['e2e/**', 'node_modules/**'],
     css: false,
+    // Timing assertions (diff windowing, the lazy tree) are measured in-process; keep files sequential so workers do not compete for the CPU.
+    fileParallelism: false,
   },
 })

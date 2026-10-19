@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query'
-import { ApiError, del, get, optional, patch, post, put, repoBase, webappRepoBase } from './api'
+import { ApiError, del, get, optional, parseError, patch, post, put, repoBase, webappRepoBase } from './api'
 import type * as T from './types'
 
 // Query keys are arrays whose prefix identifies the family, so the live
@@ -63,7 +63,59 @@ export const useRepos = (org?: string) => useQuery({ queryKey: qk.repos(org), qu
 export const useRepo = (org: string, name: string, opts?: Opts<T.Repo>) => useQuery({ queryKey: qk.repo(org, name), queryFn: () => get<T.Repo>(repoBase(org, name), { quiet: true }), ...defaultQueryOptions, staleTime: 30_000, ...opts })
 
 export const useRefs = (org: string, name: string) => useQuery({ queryKey: qk.r(org, name, 'refs'), queryFn: () => get<Record<string, string>>(`${repoBase(org, name)}/refs`), ...defaultQueryOptions })
-export const useTree = (org: string, name: string, ref: string) => useQuery({ queryKey: qk.r(org, name, 'tree', ref), queryFn: () => get<string[] | null>(`${repoBase(org, name)}/tree?ref=${encodeURIComponent(ref)}`, { quiet: true }).then((r) => r ?? []), ...defaultQueryOptions, staleTime: 30_000 })
+// The tree endpoint lists one directory (depth=1, directories end in "/") or a
+// paged recursive listing (limit/offset, X-Ore-Tree-Total and
+// X-Ore-Tree-Truncated). The browser never asks for the whole tree of a
+// repository at once: a 100,000-file repository is 3.5 MB per call.
+export type TreePage = { entries: string[]; total: number; truncated: boolean }
+export const TREE_PAGE = 20_000
+
+export async function fetchTree(org: string, name: string, ref: string, opts: { path?: string; depth1?: boolean; limit?: number; offset?: number } = {}, signal?: AbortSignal): Promise<TreePage> {
+  const p = new URLSearchParams({ ref })
+  if (opts.path) p.set('path', opts.path)
+  if (opts.depth1) p.set('depth', '1')
+  if (opts.limit) p.set('limit', String(opts.limit))
+  if (opts.offset) p.set('offset', String(opts.offset))
+  const res = await fetch(`${repoBase(org, name)}/tree?${p}`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal })
+  if (!res.ok) throw await parseError(res)
+  const entries = ((await res.json()) as string[] | null) ?? []
+  const total = Number(res.headers.get('X-Ore-Tree-Total') ?? entries.length)
+  return { entries, total: Number.isFinite(total) ? total : entries.length, truncated: res.headers.get('X-Ore-Tree-Truncated') === 'true' }
+}
+
+export const treeDirKey = (org: string, name: string, ref: string, path: string) => qk.r(org, name, 'tree', ref, 'dir', path)
+
+/** One directory of the tree: direct children only, loaded when the user opens it. */
+export const useTreeDir = (org: string, name: string, ref: string, path: string, enabled = true) =>
+  useQuery({ queryKey: treeDirKey(org, name, ref, path), queryFn: () => fetchTree(org, name, ref, { path, depth1: true }), ...defaultQueryOptions, staleTime: 60_000, enabled: enabled && !!ref })
+
+/**
+ * Scans the recursive listing page by page, keeping only the entries `keep`
+ * accepts (bounded by `max`), so a 100k-file repository is never held in
+ * memory. Reports progress after every page; stops early when `max` is reached.
+ */
+export async function scanTree(org: string, name: string, ref: string, keep: (path: string) => number | null, opts: { max?: number; pageSize?: number; signal?: AbortSignal; onProgress?: (p: { hits: Array<{ path: string; score: number }>; scanned: number; total: number; done: boolean }) => void } = {}): Promise<{ hits: Array<{ path: string; score: number }>; scanned: number; total: number; complete: boolean }> {
+  const max = opts.max ?? 50
+  const pageSize = opts.pageSize ?? TREE_PAGE
+  let hits: Array<{ path: string; score: number }> = []
+  let scanned = 0
+  let total = 0
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await fetchTree(org, name, ref, { limit: pageSize, offset }, opts.signal)
+    total = page.total
+    for (const e of page.entries) {
+      const score = keep(e)
+      if (score !== null) hits.push({ path: e, score })
+    }
+    scanned += page.entries.length
+    hits.sort((a, b) => a.score - b.score || a.path.length - b.path.length)
+    if (hits.length > max) hits = hits.slice(0, max)
+    const done = page.entries.length === 0 || scanned >= total || !page.truncated
+    opts.onProgress?.({ hits, scanned, total, done })
+    if (done) return { hits, scanned, total, complete: true }
+    if (hits.length >= max && hits[max - 1]!.score === 0) return { hits, scanned, total, complete: false }
+  }
+}
 export const useBlob = (org: string, name: string, ref: string, path: string, enabled = true) =>
   useQuery({ queryKey: qk.r(org, name, 'blob', ref, path), queryFn: () => get<T.Blob>(`${webappRepoBase(org, name)}/blob?ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`, { quiet: true }), ...defaultQueryOptions, staleTime: 60_000, enabled })
 export const useLog = (org: string, name: string, ref: string) => useQuery({ queryKey: qk.r(org, name, 'log', ref), queryFn: () => get<T.LogEntry[] | null>(`${repoBase(org, name)}/log?ref=${encodeURIComponent(ref)}`, { quiet: true }).then((r) => r ?? []), ...defaultQueryOptions })

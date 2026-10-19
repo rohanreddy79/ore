@@ -58,6 +58,7 @@ URLs mirror GitHub's: `/app/{org}/{repo}` (code), `/tree/{ref}/{path}`, `/blob/{
 | `GET /api/v0/webapp/runs/{id}/log/stream`, `.../agent/{id}/log/stream` | log tails as batches of lines, `status` and `done` events |
 | `GET /api/v0/webapp/repos/{org}/{name}/commits/{oid}` | a commit with its patch and stat |
 | `GET .../blob?ref=&path=` | a file with size, line count, binary flag and the last commit touching it |
+| (core) `GET /api/v0/repos/{org}/{name}/tree?depth=1&path=` | what the file browser uses: one directory per request; the recursive form is only read page by page (`limit`, `offset`) by the file finder |
 | `GET .../compare?base=&head=` | commits and the diff between two refs |
 | `GET /api/v0/webapp/search?q=` | repositories, issues and changes for the command palette |
 
