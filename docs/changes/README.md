@@ -25,7 +25,7 @@ All six slices merged; one integration fix followed (change comments live in the
 
 ## Wave 2: ownership map
 
-Same rules as wave 1. Wave 2 branches from the merged `main`; the services from wave 1 are available on `web.Server` (`s.Services["gateway"]`, `s.Services["identity"]`, `s.Services["review.landing"]`, `s.Services["review.v1"]`, delivery environments under `internal/delivery/environments`, pipelines actions and secrets under `internal/pipelines`).
+Same rules as wave 1. Wave 2 is built by the wave-1 sessions on their existing branches after merging `main` (review → agent fleet, pipelines → learning, identity → UI, mcp → webhooks, delivery → operations, github → importer); the services from wave 1 are available on `web.Server` (`s.Services["gateway"]`, `s.Services["identity"]`, `s.Services["review.landing"]`, `s.Services["review.v1"]`, delivery environments under `internal/delivery/environments`, pipelines actions and secrets under `internal/pipelines`).
 
 | Slice | Branch | Owns | Migration file | Registers as |
 |---|---|---|---|---|
