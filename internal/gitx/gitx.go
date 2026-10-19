@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -424,6 +425,18 @@ type FileEdit struct {
 // parent is "") by applying edits through a temporary index: no working copy,
 // no clone. This is the Scion-style "commit through the API" primitive.
 func CommitFiles(ctx context.Context, path, parent string, edits []FileEdit, message string, author Author) (string, error) {
+	var parents []string
+	if parent != "" {
+		parents = []string{parent}
+	}
+	return CommitTreeEdits(ctx, path, parent, parents, edits, message, author)
+}
+
+// CommitTreeEdits applies edits to the tree of treeish (a commit or a tree;
+// "" starts from an empty tree) and commits the result with the given
+// parents. A merge commit with resolutions is CommitTreeEdits(merge-tree
+// result, [tip, other], resolutions).
+func CommitTreeEdits(ctx context.Context, path, treeish string, parents []string, edits []FileEdit, message string, author Author) (string, error) {
 	idx, err := os.CreateTemp("", "ore-index-*")
 	if err != nil {
 		return "", err
@@ -431,8 +444,8 @@ func CommitFiles(ctx context.Context, path, parent string, edits []FileEdit, mes
 	idx.Close()
 	defer os.Remove(idx.Name())
 	env := []string{"GIT_INDEX_FILE=" + idx.Name()}
-	if parent != "" {
-		if _, err := Run(ctx, path, env, "read-tree", parent); err != nil {
+	if treeish != "" {
+		if _, err := Run(ctx, path, env, "read-tree", treeish); err != nil {
 			return "", err
 		}
 	} else {
@@ -465,12 +478,11 @@ func CommitFiles(ctx context.Context, path, parent string, edits []FileEdit, mes
 	if err != nil {
 		return "", err
 	}
-	var parents []string
-	if parent != "" {
-		parents = []string{parent}
-	}
 	return CommitTree(ctx, path, strings.TrimSpace(tree), parents, message, author)
 }
+
+// IsOID reports whether s is a full hex object id (SHA-1 or SHA-256).
+func IsOID(s string) bool { return isHexOID(s) }
 
 // Archive extracts the tree at rev into dest (a materialized working copy for jobs).
 func Archive(ctx context.Context, path, rev, dest string) error {
@@ -515,6 +527,78 @@ func ArchivePaths(ctx context.Context, path, rev, dest string, paths []string) e
 		return fmt.Errorf("tar: %w: %s", err, terr.String())
 	}
 	return nil
+}
+
+// ArchiveTo streams a tar of the tree at rev (limited to paths when
+// non-empty) into w: the server side of `ore open` and `ore sync`, which
+// materialize a repository on a workstation without git. Output written
+// before a failure stays written; callers that stream to a client report
+// the error out of band (a trailer).
+func ArchiveTo(ctx context.Context, path, rev string, paths []string, w io.Writer) error {
+	args := []string{"archive", "--format=tar", rev}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+	if err := gate.acquire(ctx); err != nil {
+		return err
+	}
+	defer gate.release()
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = path
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
+	var errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = w, &errb
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git archive: %w: %s", err, strings.TrimSpace(errb.String()))
+	}
+	return nil
+}
+
+// DiffEntry is one path that differs between two trees.
+type DiffEntry struct {
+	// Status is A (added), M (modified, including mode-only changes), D
+	// (deleted) or T (type changed, e.g. file to symlink).
+	Status  string `json:"status"`
+	Path    string `json:"path"`
+	OldMode string `json:"old_mode,omitempty"`
+	Mode    string `json:"mode,omitempty"`
+	OldOID  string `json:"old_oid,omitempty"`
+	OID     string `json:"oid,omitempty"`
+}
+
+// DiffTree lists the paths that differ between the trees of from and to
+// (limited to paths when non-empty), without rename detection, with the
+// modes and blob ids on both sides: what a client needs to bring a
+// materialized tree from one commit to another.
+func DiffTree(ctx context.Context, path, from, to string, paths []string) ([]DiffEntry, error) {
+	args := []string{"diff-tree", "-r", "--raw", "--no-renames", "-z", from, to}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+	out, err := Run(ctx, path, nil, args...)
+	if err != nil {
+		return nil, err
+	}
+	var entries []DiffEntry
+	fields := strings.Split(strings.TrimRight(out, "\x00"), "\x00")
+	for i := 0; i+1 < len(fields); i += 2 {
+		// ":<old mode> <new mode> <old oid> <new oid> <status>" then the path
+		meta := strings.Fields(strings.TrimPrefix(fields[i], ":"))
+		if len(meta) != 5 {
+			return nil, fmt.Errorf("diff-tree: unexpected entry %q", fields[i])
+		}
+		e := DiffEntry{Status: meta[4][:1], Path: fields[i+1], OldMode: meta[0], Mode: meta[1], OldOID: meta[2], OID: meta[3]}
+		if e.OldMode == "000000" {
+			e.OldMode, e.OldOID = "", ""
+		}
+		if e.Mode == "000000" {
+			e.Mode, e.OID = "", ""
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
 }
 
 // Diff returns a unified diff between two revisions.

@@ -100,6 +100,23 @@ func Infer(dir string) Spec {
 	return Spec{Version: 0}
 }
 
+// SparsePaths returns the repository's active area at commitOID: the
+// pipeline file plus the `paths:` it declares, or nil when the pipeline
+// declares none (the whole tree). Pipelines, agent workspaces and `ore open`
+// materialize exactly this, so a 100k-file repository never leaves git in
+// full for work that touches one directory.
+func SparsePaths(ctx context.Context, repoPath, commitOID string) []string {
+	raw, err := gitx.ReadFile(ctx, repoPath, commitOID, SpecPath)
+	if err != nil {
+		return nil
+	}
+	var pre Spec
+	if yaml.Unmarshal(raw, &pre) != nil || len(pre.Paths) == 0 {
+		return nil
+	}
+	return append([]string{SpecPath}, pre.Paths...)
+}
+
 // Runner executes pipeline runs.
 type Runner struct {
 	DB       *ledger.DB
@@ -187,13 +204,7 @@ func (rn *Runner) execute(ctx context.Context, repo ledger.Repo, commitOID strin
 	// Sparse materialization: read the pipeline file straight from git first
 	// and honor its paths, so a huge repository is never checked out in full
 	// for a path-scoped pipeline.
-	var sparse []string
-	if raw, err := gitx.ReadFile(ctx, repoPath, commitOID, SpecPath); err == nil {
-		var pre Spec
-		if yaml.Unmarshal(raw, &pre) == nil && len(pre.Paths) > 0 {
-			sparse = append([]string{SpecPath}, pre.Paths...)
-		}
-	}
+	sparse := SparsePaths(ctx, repoPath, commitOID)
 	t0 := time.Now()
 	how, err := rn.materialize(ctx, repoPath, repo.ID, commitOID, sparse, work)
 	if err != nil {
