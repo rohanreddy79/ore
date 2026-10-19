@@ -64,7 +64,7 @@ func (s *Service) Land(ctx context.Context, r ledger.Repo, c ledger.Change, req 
 	}
 	switch strategy {
 	case StrategyLandWhenGreen:
-		return s.landWhenGreen(ctx, r, c, &l, actor)
+		return s.landWhenGreen(ctx, r, c, &l, req, actor)
 	case StrategyOptimistic:
 		return s.landOptimistic(ctx, r, c, &l, actor)
 	default:
@@ -85,14 +85,20 @@ func (s *Service) failLanding(ctx context.Context, r ledger.Repo, c ledger.Chang
 	return *l, &LandingError{Landing: *l, Err: cause}
 }
 
-func (s *Service) landWhenGreen(ctx context.Context, r ledger.Repo, c ledger.Change, l *Landing, actor ledger.Actor) (Landing, error) {
-	if s.Verifier == nil {
-		return s.failLanding(ctx, r, c, l, ErrNoVerifier)
-	}
+func (s *Service) landWhenGreen(ctx context.Context, r ledger.Repo, c ledger.Change, l *Landing, req LandRequest, actor ledger.Actor) (Landing, error) {
 	if err := s.updateLanding(ctx, r, c, l, LandingVerifying, nil); err != nil {
 		return *l, err
 	}
-	run, err := s.Verifier.Run(ctx, r, c.HeadOID, &c.ID, actor)
+	var run ledger.PipelineRun
+	var err error
+	if prior, perr := s.DB.PipelineRun(ctx, req.VerificationRunID); req.VerificationRunID != "" && perr == nil && prior.CommitOID == c.HeadOID && prior.Status == "succeeded" {
+		run = prior // the head was already verified by this run; do not verify it twice
+	} else {
+		if s.Verifier == nil {
+			return s.failLanding(ctx, r, c, l, ErrNoVerifier)
+		}
+		run, err = s.Verifier.Run(ctx, r, c.HeadOID, &c.ID, actor)
+	}
 	if run.ID != "" {
 		l.VerificationRunID = &run.ID
 	}
