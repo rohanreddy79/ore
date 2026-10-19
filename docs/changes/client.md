@@ -1,6 +1,6 @@
 # Workstation client: working without git
 
-Branch `rohan/practical-maxwell-cc831e`. No migration. Implements ADR 0016 §2: the `ore` binary is the workstation client, and a developer works on a repository with no git on the machine. Owns `internal/workspace/` (new) and `cmd/ore/workspace.go` (new); additive edits to `internal/gitx/gitx.go`, `internal/pipelines/pipelines.go`, `internal/web/web.go` (one new file, `internal/web/client_routes.go`) and `cmd/ore/main.go` (the command switch, the usage text, and the token lookup of the existing CLI, which now also reads the credentials file).
+Branch `rohan/gracious-morse-a83786` (worktree `practical-maxwell-cc831e`). No migration. Implements ADR 0016 §2: the `ore` binary is the workstation client, and a developer works on a repository with no git on the machine. Owns `internal/workspace/` (new) and `cmd/ore/workspace.go` (new); additive edits to `internal/gitx/gitx.go`, `internal/pipelines/pipelines.go`, `internal/web/web.go` (one new file, `internal/web/client_routes.go`) and `cmd/ore/main.go` (the command switch, the usage text, and the token lookup of the existing CLI, which now also reads the credentials file).
 
 ## What landed
 

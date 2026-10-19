@@ -82,7 +82,7 @@ func (s *State) Sync(ctx context.Context, c *Client, inline bool, out io.Writer)
 				}
 				s.Base = btip
 			}
-			d, err := c.Diff(ctx, s.Org, s.Repo, s.Base, tip, nil)
+			d, err := c.Diff(ctx, s.Org, s.Repo, s.Base, tip, s.Paths) // only the merge base matters here
 			if err != nil {
 				return nil, err
 			}
@@ -257,7 +257,10 @@ func (s *State) apply(ctx context.Context, c *Client, from, to string, dirty map
 	}
 	for _, e := range d.Files {
 		kind, isDirty := dirty[e.Path]
-		up := blobs[e.Path]
+		up, ok := blobs[e.Path]
+		if !ok && e.Status != "D" {
+			return fmt.Errorf("archive of %s did not include %s", short(to), e.Path)
+		}
 		if !isDirty {
 			if e.Status == "D" {
 				if err := RemoveFile(s.root, e.Path); err != nil {
@@ -391,7 +394,10 @@ func (s *State) syncConflicted(ctx context.Context, c *Client, tip, mergeBase st
 	for _, e := range theirs.Files {
 		p := e.Path
 		kind, isDirty := dirty[p]
-		up := blobs[p]
+		up, ok := blobs[p]
+		if !ok && e.Status != "D" {
+			return fmt.Errorf("archive of %s did not include %s", short(tip), p)
+		}
 		base := bases[p].content
 		switch {
 		case !isDirty && !oursSet[p]:

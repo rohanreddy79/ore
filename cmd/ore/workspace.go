@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/orevcs/ore/internal/workspace"
@@ -84,8 +85,8 @@ func runOpen(ctx context.Context, fl *flags, cwd string, out io.Writer) error {
 	if len(fl.pos) > 1 {
 		dir = fl.pos[1]
 	}
-	if !strings.HasPrefix(dir, "/") {
-		dir = cwd + "/" + dir
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(cwd, dir)
 	}
 	server := workspace.NormalizeServer(fl.str("url", envOr("ORE_URL", "http://localhost:7777")))
 	token, user := workspace.TokenFor(server)

@@ -54,6 +54,7 @@ func Open(ctx context.Context, c *Client, org, repo, dir string, all bool, user 
 	if err != nil {
 		return nil, err
 	}
+	io.Copy(io.Discard, resp.Body) // the tar ends before the body does; the trailer follows the body
 	if err := ArchiveError(resp); err != nil {
 		return nil, err
 	}

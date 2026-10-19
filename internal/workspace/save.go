@@ -77,10 +77,9 @@ func (s *State) Save(ctx context.Context, c *Client, message string, out io.Writ
 	if newBranch {
 		s.Change = &ChangeRef{Branch: BranchName(s.User, title), Title: title}
 	}
-	req := CommitRequest{Branch: s.Change.Branch, Message: message, Merge: s.PendingMerge, Files: FileEdits(edits)}
-	if newBranch || s.Change.Number > 0 {
-		req.Base = s.Base // start the new branch here, or insist the change is still where we left it
-	}
+	// base starts a new branch where the tree was opened, and insists an
+	// existing one is still where the last save or sync left it
+	req := CommitRequest{Branch: s.Change.Branch, Message: message, Base: s.Base, Merge: s.PendingMerge, Files: FileEdits(edits)}
 	if ferr != nil {
 		return s.queue(req, edits, cur, out)
 	}
