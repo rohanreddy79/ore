@@ -207,7 +207,10 @@ function FileFinder({ open, onClose, org, repo, refFull, onPick }: { open: boole
     if (!open) return
     const needle = q.trim()
     const ctl = new AbortController()
+    // A new query starts from an empty list: stale matches must never answer Enter.
     setIdx(0)
+    setHits([])
+    setProgress(null)
     const t = setTimeout(() => {
       const keep = needle ? (p: string) => fuzzyScore(needle, p) : (_p: string) => 0
       scanTree(org, repo, refFull, keep, {
