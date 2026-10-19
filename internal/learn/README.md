@@ -1,1 +1,1 @@
-# internal/learn — lesson engine (assert/advance/hint tasks), lesson runs, onboarding checklist, learn-at-the-error catalog, tutor gateway, Q&A endorsement, credentials (Open Badges 3.0), localization bundles. Phase 1/2. See docs/06 and ADR 0010.
+# internal/learn — the learning engine: lessons as pipelines (one assert per step), lesson runs on the ledger, a worker that advances runs from events, learn-at-the-error, the embedded curriculum (`lessons/`). Phase 1. See docs/06, ADR 0010 and docs/changes/learn.md (manifest format, assert language, routes, edge cases, deferred).

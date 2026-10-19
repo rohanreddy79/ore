@@ -1,0 +1,43 @@
+id: git-and-forge/a-change-with-a-review
+version: 0.1.0
+track: 1-git-and-forge
+title_key: title
+estimated_minutes: 25
+prerequisites: [git-and-forge/your-first-change]
+artifact: an approved change, merged
+exam_objectives:
+  - github-foundations: "Pull request reviews; Required reviewers"
+  - gitlab-git-associate: "Merge request approvals"
+mode: scratch_repository
+languages: [en]
+quota_class: learning
+template:
+  files:
+    - path: README.md
+      content: |
+        # A change with a review
+
+        This repository requires one approval before a change can land.
+    - path: learn/.keep
+      content: ""
+  review_policy:
+    required_approvals: 1
+steps:
+  - id: 1-branch-and-push
+    assert:
+      query: ref.exists('learn/review-*') && file.exists('learn/review-*', 'learn/review.md')
+    hint_after_failures: 2
+  - id: 2-open-a-change
+    assert:
+      query: change.open('learn/review-*') || change.merged('learn/review-*')
+    hint_after_failures: 1
+  - id: 3-get-an-approval
+    assert:
+      query: change.approved('learn/review-*')
+    hint_after_failures: 1
+  - id: 4-land-it
+    assert:
+      query: change.merged('learn/review-*')
+    hint_after_failures: 1
+on_complete:
+  credential: track-1-progress

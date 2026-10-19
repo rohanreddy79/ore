@@ -1,0 +1,42 @@
+id: git-and-forge/branches-and-protection
+version: 0.1.0
+track: 1-git-and-forge
+title_key: title
+estimated_minutes: 20
+prerequisites: [git-and-forge/your-first-change]
+artifact: a change merged into a protected branch from a feature branch
+exam_objectives:
+  - github-foundations: "Branching; Protected branches and rulesets"
+  - gitlab-git-associate: "Branches; Protected branches"
+mode: scratch_repository
+languages: [en, hi, pt-BR]
+quota_class: learning
+template:
+  files:
+    - path: README.md
+      content: |
+        # Branches and protection
+
+        The default branch of this repository is protected: pushes to it are refused by policy.
+        Everything lands through a change.
+    - path: learn/.keep
+      content: ""
+steps:
+  - id: 1-see-the-refusal-then-branch
+    assert:
+      query: ref.exists('learn/protect-*')
+    hint_after_failures: 2
+  - id: 2-describe-protection
+    assert:
+      query: file.contains('learn/protect-*', 'learn/branches.md', 'protected')
+    hint_after_failures: 2
+  - id: 3-open-a-change
+    assert:
+      query: change.open('learn/protect-*') || change.merged('learn/protect-*')
+    hint_after_failures: 1
+  - id: 4-land-it
+    assert:
+      query: change.merged('learn/protect-*') && file.contains(default, 'learn/branches.md', 'protected')
+    hint_after_failures: 1
+on_complete:
+  credential: track-1-progress

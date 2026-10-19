@@ -1,0 +1,49 @@
+id: git-and-forge/resolving-a-conflict
+version: 0.1.0
+track: 1-git-and-forge
+title_key: title
+estimated_minutes: 30
+prerequisites: [git-and-forge/your-first-change]
+artifact: a change that conflicted, was resolved, and merged
+exam_objectives:
+  - github-foundations: "Merge conflicts"
+  - gitlab-git-associate: "Resolving conflicts; Rebasing and merging"
+mode: scratch_repository
+languages: [en]
+quota_class: learning
+template:
+  files:
+    - path: README.md
+      content: |
+        # Resolving a conflict
+
+        `menu.txt` has two commits on the default branch. You will branch from the first one,
+        change the same line, and resolve the conflict that follows.
+    - path: menu.txt
+      content: |
+        Today's special: soup
+  commits:
+    - message: "menu: today's special is salad"
+      files:
+        - path: menu.txt
+          content: |
+            Today's special: salad
+steps:
+  - id: 1-branch-from-the-past
+    assert:
+      query: ref.exists('learn/conflict-*') && file.contains('learn/conflict-*', 'menu.txt', 'special')
+    hint_after_failures: 2
+  - id: 2-open-a-conflicting-change
+    assert:
+      query: change.open('learn/conflict-*') && !change.mergeable('learn/conflict-*')
+    hint_after_failures: 1
+  - id: 3-resolve-it
+    assert:
+      query: change.open('learn/conflict-*') && change.mergeable('learn/conflict-*')
+    hint_after_failures: 2
+  - id: 4-merge-it
+    assert:
+      query: change.merged('learn/conflict-*')
+    hint_after_failures: 1
+on_complete:
+  credential: track-1-progress
