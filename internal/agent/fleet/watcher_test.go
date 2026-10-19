@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/orevcs/ore/internal/agent"
 	"github.com/orevcs/ore/internal/ledger"
@@ -284,5 +285,69 @@ func TestFlaggingAChangeDemotesWithEvidence(t *testing.T) {
 	_, rec2, applied2, err := e2.svc.FlagChange(e2.ctx, e2.repo, ch2, "", e2.human)
 	if err != nil || applied2 || rec2.Action != "hold" {
 		t.Fatalf("L2 flag: %v %+v", err, rec2)
+	}
+}
+
+// insertProductionDeployment records a production deployment with a given
+// outcome and, when at is set, forces its created_at to that instant.
+func (e *env) insertProductionDeployment(status, at string) ledger.Deployment {
+	e.t.Helper()
+	dep := ledger.Deployment{Environment: "production", CommitOID: e.c0, Actor: ledger.Actor{Kind: "agent", ID: "demo-script"}}
+	if err := e.db.InsertDeployment(e.ctx, e.repo, &dep); err != nil {
+		e.t.Fatal(err)
+	}
+	if at != "" {
+		if _, err := e.db.Exec(e.ctx, `UPDATE deployments SET created_at = ? WHERE id = ?`, at, dep.ID); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	e.db.UpdateDeployment(e.ctx, e.repo, &dep, "started")
+	e.db.UpdateDeployment(e.ctx, e.repo, &dep, status)
+	return dep
+}
+
+func TestEvidenceWindowRestartsStrictlyAfterTheLevelChangeEvent(t *testing.T) {
+	e := newEnv(t, 4)
+	// Freeze the fleet's clock: the deployments, the demotion and the second
+	// evaluation all happen in the same millisecond, so a timestamp boundary
+	// (created_at >= last change) would count the deployments twice.
+	fixed := time.Now()
+	e.svc.Now = func() time.Time { return fixed }
+	at := stamp(fixed)
+	e.insertProductionDeployment("failed", at)
+	e.insertProductionDeployment("failed", at)
+	ev, rec, applied, err := e.svc.Evaluate(e.ctx, e.repo, "test", FleetActor)
+	if err != nil || !applied || rec.Action != "demote" || rec.To != 3 || ev.Production.Deployments != 2 {
+		t.Fatalf("first evaluation: %v %+v applied=%v production=%+v", err, rec, applied, ev.Production)
+	}
+	st, _ := e.svc.Settings(e.ctx, e.repo)
+	if st.LastLevelChangeAt != at {
+		t.Fatalf("the level change and the deployments must share the millisecond for this test: %s vs %s", st.LastLevelChangeAt, at)
+	}
+	ev2, rec2, applied2, err := e.svc.Evaluate(e.ctx, e.reload(), "again", FleetActor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied2 || rec2.Action != "hold" || ev2.Production.Deployments != 0 || ev2.WindowAfterSeq == 0 {
+		t.Fatalf("the evidence that caused the demotion must not count again: %+v applied=%v production=%+v", rec2, applied2, ev2.Production)
+	}
+	if e.reload().AutonomyLevel != 3 {
+		t.Fatalf("level: %d", e.repo.AutonomyLevel)
+	}
+	// deployments after the change event count, even in the same millisecond
+	e.insertProductionDeployment("failed", at)
+	e.insertProductionDeployment("failed", at)
+	ev3, rec3, applied3, _ := e.svc.Evaluate(e.ctx, e.reload(), "later", FleetActor)
+	if ev3.Production.Deployments != 2 || rec3.Action != "demote" || !applied3 || e.reload().AutonomyLevel != 2 {
+		t.Fatalf("new evidence after the boundary must count: %+v applied=%v production=%+v level=%d", rec3, applied3, ev3.Production, e.repo.AutonomyLevel)
+	}
+	// a human's level change restarts the window too
+	e.insertProductionDeployment("failed", "")
+	if err := e.db.SetAutonomyLevel(e.ctx, e.reload(), 4, "promoted by hand", e.human); err != nil {
+		t.Fatal(err)
+	}
+	ev4, rec4, _, _ := e.svc.Evaluate(e.ctx, e.reload(), "after promotion", FleetActor)
+	if ev4.Production.Deployments != 0 || rec4.Action != "hold" || e.reload().AutonomyLevel != 4 {
+		t.Fatalf("a manual level change restarts the window: %+v production=%+v level=%d", rec4, ev4.Production, e.repo.AutonomyLevel)
 	}
 }
