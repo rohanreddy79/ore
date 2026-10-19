@@ -11,8 +11,26 @@ test.describe('the main flow', () => {
   })
 
   test('browse code: tree, README, a file with line anchors, history and a commit diff', async ({ page }) => {
+    // The browser loads one directory at a time: every tree request is depth=1.
+    const treeRequests: string[] = []
+    page.on('request', (r) => {
+      if (r.url().includes('/tree?')) treeRequests.push(r.url())
+    })
     await page.goto('/app/acme/app')
     await expect(page.locator('.repo-head h1')).toContainText('app')
+    // Expand and collapse a directory in the tree pane.
+    const tree = page.getByRole('tree', { name: 'Files' })
+    await expect(tree.getByRole('button', { name: 'docs' })).toBeVisible()
+    await expect(tree.getByRole('button', { name: 'guide.md' })).toHaveCount(0)
+    await tree.getByRole('button', { name: 'docs' }).click()
+    await expect(tree.getByRole('button', { name: 'guide.md' })).toBeVisible()
+    await expect(page).toHaveURL(/\/tree\/main\/docs$/)
+    await tree.getByRole('button', { name: 'docs' }).click()
+    await expect(tree.getByRole('button', { name: 'guide.md' })).toHaveCount(0)
+    expect(treeRequests.length).toBeGreaterThan(0)
+    expect(treeRequests.every((u) => u.includes('depth=1'))).toBe(true)
+    expect(treeRequests.some((u) => u.includes('path=docs'))).toBe(true)
+    await page.goto('/app/acme/app')
     // README renders as Markdown, sanitized.
     await expect(page.locator('.prose h1', { hasText: 'app' })).toBeVisible()
     expect(await page.locator('.prose script').count()).toBe(0)
@@ -29,6 +47,7 @@ test.describe('the main flow', () => {
     await unfocus(page)
     await page.keyboard.press('t')
     await page.getByLabel('File path').fill('guide')
+    await expect(page.getByRole('option', { name: /docs\/guide\.md/ })).toBeVisible()
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/docs\/guide\.md$/)
     await expect(page.locator('.prose')).toContainText('How to deploy the app')

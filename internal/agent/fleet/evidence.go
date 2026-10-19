@@ -4,7 +4,9 @@ package fleet
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -86,7 +88,12 @@ type Evidence struct {
 	Since             string `json:"since"`
 	Until             string `json:"until"`
 	WindowRestartedAt string `json:"window_restarted_at,omitempty"`
-	Changes           struct {
+	// WindowAfterSeq is the ledger sequence of the last autonomy level change;
+	// only entities whose creation event is strictly after it count, so the
+	// evidence that caused a level change can never cause it twice, whatever
+	// the clock says.
+	WindowAfterSeq int64 `json:"window_after_seq,omitempty"`
+	Changes        struct {
 		Opened           int      `json:"opened"`
 		Merged           int      `json:"merged"` // including those later reverted
 		Closed           int      `json:"closed"`
@@ -123,7 +130,26 @@ type Recommendation struct {
 	Automatic bool `json:"automatic"`
 }
 
+// levelChangeBoundary returns the ledger sequence and time of the last
+// io.ore.repository.autonomy.changed event for the repository (0 when the
+// level never changed). The evidence window restarts strictly after it.
+func (s *Service) levelChangeBoundary(ctx context.Context, repo ledger.Repo) (int64, string, error) {
+	var seq int64
+	var at string
+	err := s.DB.QueryRow(ctx, `SELECT seq, time FROM events WHERE type = 'io.ore.repository.autonomy.changed' AND org_id = ? AND subject = ? ORDER BY seq DESC LIMIT 1`, repo.OrgID, repoSubject(repo)).Scan(&seq, &at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "", nil
+	}
+	return seq, at, err
+}
+
 // Evidence computes the evidence and the recommendation for a repository.
+// The window is the last evidence_window_days, cut at the last level change:
+// an entity counts when its creation event (io.ore.change.opened,
+// io.ore.deployment.requested, io.ore.agent.session.started,
+// io.ore.change.flagged, ...) has a ledger sequence strictly after that
+// change's event. Sequences, not timestamps, decide, so entities created in
+// the same millisecond as the level change are not counted twice.
 func (s *Service) Evidence(ctx context.Context, repo ledger.Repo) (Evidence, Recommendation, error) {
 	st, err := s.Settings(ctx, repo)
 	if err != nil {
@@ -132,16 +158,20 @@ func (s *Service) Evidence(ctx context.Context, repo ledger.Repo) (Evidence, Rec
 	now := s.now()
 	since := now.Add(-time.Duration(st.EvidenceWindowDays) * 24 * time.Hour)
 	ev := Evidence{Repo: repo.Org + "/" + repo.Name, Level: repo.AutonomyLevel, WindowDays: st.EvidenceWindowDays, Until: stamp(now)}
-	if st.LastLevelChangeAt != "" {
-		if t := parseStamp(st.LastLevelChangeAt); t.After(since) {
-			since = t
-			ev.WindowRestartedAt = st.LastLevelChangeAt
-		}
+	boundary, boundaryAt, err := s.levelChangeBoundary(ctx, repo)
+	if err != nil {
+		return ev, Recommendation{}, err
+	}
+	ev.WindowAfterSeq = boundary
+	if boundary > 0 {
+		ev.WindowRestartedAt = boundaryAt // informational: the sequence decides, not the clock
 	}
 	ev.Since = stamp(since)
+	subj := repoSubject(repo)
 
 	// agent changes
-	rows, err := s.DB.Query(ctx, `SELECT state, provenance FROM changes WHERE repo_id = ? AND created_at >= ?`, repo.ID, ev.Since)
+	rows, err := s.DB.Query(ctx, `SELECT c.state, c.provenance FROM changes c WHERE c.repo_id = ? AND c.created_at >= ?
+		AND EXISTS (SELECT 1 FROM events e WHERE e.type = 'io.ore.change.opened' AND e.seq > ? AND e.subject = ? || '/changes/' || c.number)`, repo.ID, ev.Since, boundary, subj)
 	if err != nil {
 		return ev, Recommendation{}, err
 	}
@@ -169,7 +199,7 @@ func (s *Service) Evidence(ctx context.Context, repo ledger.Repo) (Evidence, Rec
 		}
 	}
 	rows.Close()
-	if ev.Changes.Flagged, err = s.flagsSince(ctx, repo, ev.Since); err != nil {
+	if err := s.DB.QueryRow(ctx, `SELECT COUNT(1) FROM events WHERE org_id = ? AND type = 'io.ore.change.flagged' AND seq > ? AND time >= ? AND subject LIKE ?`, repo.OrgID, boundary, ev.Since, subj+"/changes/%").Scan(&ev.Changes.Flagged); err != nil {
 		return ev, Recommendation{}, err
 	}
 	ev.Changes.Decided = ev.Changes.Merged + ev.Changes.Closed
@@ -193,8 +223,10 @@ func (s *Service) Evidence(ctx context.Context, repo ledger.Repo) (Evidence, Rec
 		}
 		ers.Close()
 	}
-	q := `SELECT status, rollback_of, created_at FROM deployments WHERE repo_id = ? AND created_at >= ? AND environment IN (` + strings.TrimSuffix(strings.Repeat("?,", len(envs)), ",") + `) ORDER BY created_at ASC`
+	q := `SELECT d.status, d.rollback_of, d.created_at FROM deployments d WHERE d.repo_id = ? AND d.created_at >= ? AND d.environment IN (` + strings.TrimSuffix(strings.Repeat("?,", len(envs)), ",") + `)
+		AND EXISTS (SELECT 1 FROM events e WHERE e.type = 'io.ore.deployment.requested' AND e.seq > ? AND e.subject = ? || '/deployments/' || d.id) ORDER BY d.created_at ASC, d.id ASC`
 	args := append([]any{repo.ID, ev.Since}, envs...)
+	args = append(args, boundary, subj)
 	drows, err := s.DB.Query(ctx, q, args...)
 	if err != nil {
 		return ev, Recommendation{}, err
@@ -247,7 +279,8 @@ func (s *Service) Evidence(ctx context.Context, repo ledger.Repo) (Evidence, Rec
 	}
 
 	// runs
-	rrows, err := s.DB.Query(ctx, `SELECT status FROM agent_runs WHERE repo_id = ? AND created_at >= ?`, repo.ID, ev.Since)
+	rrows, err := s.DB.Query(ctx, `SELECT a.status FROM agent_runs a WHERE a.repo_id = ? AND a.created_at >= ?
+		AND EXISTS (SELECT 1 FROM events e WHERE e.type = 'io.ore.agent.session.started' AND e.seq > ? AND e.subject = ? || '/agent/' || a.id)`, repo.ID, ev.Since, boundary, subj)
 	if err != nil {
 		return ev, Recommendation{}, err
 	}
@@ -268,10 +301,10 @@ func (s *Service) Evidence(ctx context.Context, repo ledger.Repo) (Evidence, Rec
 	rrows.Close()
 
 	// budget overruns and security alerts
-	if err := s.DB.QueryRow(ctx, `SELECT COUNT(1) FROM events WHERE org_id = ? AND type = 'io.ore.agent.budget.exceeded' AND time >= ? AND (subject = ? OR subject LIKE ?)`, repo.OrgID, ev.Since, repoSubject(repo), repoSubject(repo)+"/%").Scan(&ev.BudgetOverruns); err != nil {
+	if err := s.DB.QueryRow(ctx, `SELECT COUNT(1) FROM events WHERE org_id = ? AND type = 'io.ore.agent.budget.exceeded' AND seq > ? AND time >= ? AND (subject = ? OR subject LIKE ?)`, repo.OrgID, boundary, ev.Since, subj, subj+"/%").Scan(&ev.BudgetOverruns); err != nil {
 		return ev, Recommendation{}, err
 	}
-	if err := s.DB.QueryRow(ctx, `SELECT COUNT(1) FROM events WHERE org_id = ? AND type LIKE 'io.ore.security.%' AND time >= ? AND (subject = ? OR subject LIKE ?)`, repo.OrgID, ev.Since, repoSubject(repo), repoSubject(repo)+"/%").Scan(&ev.SecurityAlerts); err != nil {
+	if err := s.DB.QueryRow(ctx, `SELECT COUNT(1) FROM events WHERE org_id = ? AND type LIKE 'io.ore.security.%' AND seq > ? AND time >= ? AND (subject = ? OR subject LIKE ?)`, repo.OrgID, boundary, ev.Since, subj, subj+"/%").Scan(&ev.SecurityAlerts); err != nil {
 		return ev, Recommendation{}, err
 	}
 	return ev, Recommend(ev, st), nil
@@ -367,7 +400,9 @@ func (s *Service) ApplyRecommendation(ctx context.Context, repo ledger.Repo, act
 }
 
 // applyLevel changes the level through ledger.SetAutonomyLevel with the
-// evidence attached to the reason, and restarts the evidence window.
+// evidence attached to the reason. The evidence window restarts at that
+// event's ledger sequence (see Evidence); the timestamp kept in the settings
+// is informational.
 func (s *Service) applyLevel(ctx context.Context, repo ledger.Repo, ev Evidence, rec Recommendation, how string, actor ledger.Actor) error {
 	evJSON, _ := json.Marshal(ev)
 	reason := fmt.Sprintf("fleet %s L%d -> L%d, %s: %s; evidence: %s", rec.Action, rec.From, rec.To, how, strings.Join(rec.Reasons, "; "), evJSON)

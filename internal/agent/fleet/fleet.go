@@ -89,8 +89,9 @@ type Settings struct {
 	WatcherWindowMinutes int        `json:"watcher_window_minutes"`
 	EvidenceWindowDays   int        `json:"evidence_window_days"`
 	Thresholds           Thresholds `json:"thresholds"`
-	// LastLevelChangeAt is when the fleet last changed the level automatically;
-	// the evidence window restarts there.
+	// LastLevelChangeAt is when the fleet last changed the level itself
+	// (informational; the evidence window restarts at the ledger sequence of
+	// the last io.ore.repository.autonomy.changed event, whoever caused it).
 	LastLevelChangeAt string `json:"last_level_change_at,omitempty"`
 	UpdatedAt         string `json:"updated_at,omitempty"`
 }
