@@ -18,5 +18,8 @@ describe('invalidateFor', () => {
     qc.invalidateQueries.mockClear()
     invalidateFor(qc, ev('io.ore.identity.token.created', 'users/alice'))
     expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['identity'] })
+    qc.invalidateQueries.mockClear()
+    invalidateFor(qc, ev('io.ore.organization.settings.changed', 'orgs/acme/settings'))
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['org-settings', 'acme'] })
   })
 })

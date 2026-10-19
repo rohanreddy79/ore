@@ -100,6 +100,10 @@ export function invalidateFor(qc: { invalidateQueries: (o: { queryKey: readonly 
     if (org && repo) inv('repo', org, repo)
     return
   }
+  if (t.startsWith('io.ore.organization.settings.') && parts[0] === 'orgs' && parts[1]) {
+    inv('org-settings', parts[1])
+    return
+  }
   if (!org || !repo) {
     if (t.startsWith('io.ore.identity.')) inv('identity')
     return

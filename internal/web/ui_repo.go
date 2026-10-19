@@ -104,6 +104,14 @@ func (s *Server) uiRepo(w http.ResponseWriter, r *http.Request, a ledger.Actor) 
 	if pol, err := s.Review.Policy(ctx, repo); err == nil {
 		data["Policy"] = pol
 	}
+	// The clone line follows the organization's git transport mode (ADR 0016
+	// §3): a page never teaches a git command the bridge would refuse.
+	st, err := s.DB.OrgSettings(ctx, ledger.Org{ID: repo.OrgID, Name: repo.Org})
+	if err != nil {
+		st = ledger.DefaultOrgSettings(ledger.Org{ID: repo.OrgID, Name: repo.Org})
+	}
+	data["GitTransport"] = st.GitTransport
+	data["GitTransportReason"] = st.GitTransportReason
 	s.repoRender(w, r, a, repo, "overview", "repo", data)
 	return nil
 }

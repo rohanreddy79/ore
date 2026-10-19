@@ -6,7 +6,8 @@ import { Button, Card, Dialog, EmptyState, Field, Input, Pill, SkeletonRows, Tex
 import { ApiError, repoBase } from '../../lib/api'
 import { refName } from '../../lib/format'
 import { useHotkey } from '../../lib/keyboard'
-import { actions, qk, scanTree, useBlob, useFeatures, useLog, useRefs, useRepo, useTreeDir } from '../../lib/queries'
+import { actions, qk, scanTree, useBlob, useFeatures, useLog, useOrgSettings, useRefs, useRepo, useTreeDir } from '../../lib/queries'
+import { transportState, transportText as tt } from '../../lib/transport'
 import { Markdown, RefPicker, TimeAgo, useDocumentTitle } from '../../shell/common'
 import { NotFound } from '../../shell/NotFound'
 import { FileView } from './FileView'
@@ -331,11 +332,16 @@ function EditFileDialog({ open, onClose, org, repo, refFull, path, dir }: { open
 
 function EmptyRepo({ org, repo, branch }: { org: string; repo: string; branch: string }) {
   const { data: features } = useFeatures()
+  const settings = useOrgSettings(org)
   const base = features?.base_url || window.location.origin
+  // Wait for the mode: an organization with git off must never see a git push hint, even for a moment.
+  if (settings.isPending) return <SkeletonRows rows={4} />
+  const transport = transportState(settings.data)
+  const reason = tt.reason(transport.reason)
   return (
     <Card>
-      <EmptyState icon={<GitCommitHorizontal />} title="This repository is empty" command={`cd your-project\ngit remote add ore ${base}/${org}/${repo}.git\ngit push ore ${branch}\n\n# or, without a clone:\nore commit ${org}/${repo} -m "import" $(git ls-files)`}>
-        Push an existing project over HTTP (any user name, your token as the password) or SSH, or commit files through the API. The first push creates the default branch <Pill small>{branch}</Pill>, which is protected: later work goes through branches and changes.
+      <EmptyState icon={<GitCommitHorizontal />} title="This repository is empty" command={tt.emptyCommand(transport, base, org, repo, branch)}>
+        {tt.emptyBody(transport)} <Pill small>{branch}</Pill>, which is protected: later work goes through branches and changes.{reason ? ` ${reason}` : ''}
       </EmptyState>
     </Card>
   )

@@ -5,6 +5,10 @@ export type Actor = { kind: string; id: string }
 
 export type Org = { id: string; name: string; created_at: string }
 
+/** An organization's git transport mode (ADR 0016 §3): the git bridge is on, refuses pushes, or is off. */
+export type GitTransport = 'on' | 'read-only' | 'off'
+export type OrgSettings = { org_id: string; org: string; git_transport: GitTransport; git_transport_reason: string; updated_by?: Actor; updated_at?: string }
+
 export type Repo = {
   id: string
   org_id: string

@@ -6,7 +6,7 @@ package web
 const tmplRepo = `
 {{define "repo"}}{{template "head" .}}
 <h1>{{.Repo.Org}}/{{.Repo.Name}}</h1>
-<p class="mut">clone: <code>git clone {{.BaseURL}}/{{.Repo.Org}}/{{.Repo.Name}}.git</code> · default branch <code>{{.Repo.DefaultBranch}}</code> is protected: it moves only through changes.</p>
+<p class="mut" id="clone-hint">{{if eq .GitTransport "off"}}git is off for {{.Repo.Org}}{{with .GitTransportReason}} ({{.}}){{end}}; work with the Ore client: <code>ore login {{.BaseURL}}</code> then <code>ore open {{.Repo.Org}}/{{.Repo.Name}}</code>{{else}}clone: <code>git clone {{.BaseURL}}/{{.Repo.Org}}/{{.Repo.Name}}.git</code>{{if eq .GitTransport "read-only"}} · git pushes are off for {{.Repo.Org}}{{with .GitTransportReason}} ({{.}}){{end}}; save your work with <code>ore save</code> after <code>ore open {{.Repo.Org}}/{{.Repo.Name}}</code>{{end}}{{end}} · default branch <code>{{.Repo.DefaultBranch}}</code> is protected: it moves only through changes.</p>
 <form method="post" action="/ui/{{.Repo.Org}}/{{.Repo.Name}}/level" class="row">{{template "csrf" .CSRF}}<label for="level">Autonomy level</label>
 <select id="level" name="level">{{range $i, $n := .Levels}}<option value="{{$i}}"{{if eq $i $.Repo.AutonomyLevel}} selected{{end}}>L{{$i}} {{$n}}</option>{{end}}</select>
 <label for="level-reason" class="mut">reason</label><input id="level-reason" name="reason" size="24"> <button type="submit">Set</button></form>

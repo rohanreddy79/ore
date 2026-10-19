@@ -14,6 +14,7 @@ export const qk = {
   events: (filter: Record<string, string | number | undefined>) => ['events', filter] as const,
   identity: (...rest: unknown[]) => ['identity', ...rest] as const,
   search: (q: string) => ['search', q] as const,
+  orgSettings: (org: string) => ['org-settings', org] as const,
 }
 
 function retryPolicy(failureCount: number, error: unknown): boolean {
@@ -56,6 +57,29 @@ export function useMe() {
 
 export function useFeatures() {
   return useQuery({ queryKey: qk.features, queryFn: () => get<T.Features>('/api/v0/webapp/features', { quiet: true }), staleTime: 5 * 60_000, retry: retryPolicy })
+}
+
+/**
+ * An organization's settings (identity extension, members only). A 403 (not a
+ * member), a 404 (unknown organization, or a server without the identity
+ * extension) and the other "absent" answers read as null: the caller treats
+ * that as the default mode, git transport on.
+ */
+export function useOrgSettings(org: string) {
+  return useQuery({
+    queryKey: qk.orgSettings(org),
+    queryFn: async () => {
+      try {
+        return await get<T.OrgSettings>(`/api/v0/orgs/${encodeURIComponent(org)}/settings`, { quiet: true })
+      } catch (e) {
+        if (e instanceof ApiError && [401, 403, 404, 405, 501].includes(e.status)) return null
+        throw e
+      }
+    },
+    retry: retryPolicy,
+    staleTime: 60_000,
+    enabled: !!org,
+  })
 }
 
 export const useOrgs = () => useQuery({ queryKey: qk.orgs, queryFn: () => get<T.Org[] | null>('/api/v0/orgs').then((r) => r ?? []), ...defaultQueryOptions })
