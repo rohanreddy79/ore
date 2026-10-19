@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Outlet, useParams } from '@tanstack/react-router'
 import { Activity, BookOpen, Bot, CircleDot, Code2, Copy, GitPullRequest, Rocket, Settings, Workflow } from 'lucide-react'
-import { Button, CopyBlock, Dialog, SkeletonRows, Tabs, type TabDef } from '../design'
+import { Button, Callout, CopyBlock, Dialog, SkeletonRows, Tabs, type TabDef } from '../design'
 import { ApiError } from '../lib/api'
-import { useChanges, useFeatures, useIssues, useRepo } from '../lib/queries'
+import { useChanges, useFeatures, useIssues, useOrgSettings, useRepo } from '../lib/queries'
+import { gitCloneAllowed, transportState, transportText as tt, type TransportState } from '../lib/transport'
 import { LevelBadge, useDocumentTitle } from './common'
 import { NotFound } from './NotFound'
 
@@ -13,6 +14,8 @@ export function RepoLayout() {
   const issues = useIssues(org, repo)
   const changes = useChanges(org, repo)
   const { data: features } = useFeatures()
+  const settings = useOrgSettings(org)
+  const transport = transportState(settings.data)
   const [cloneOpen, setCloneOpen] = useState(false)
   useDocumentTitle(`${org}/${repo}`)
 
@@ -57,7 +60,7 @@ export function RepoLayout() {
             {r ? <LevelBadge level={r.autonomy_level} /> : null}
             <div className="repo-actions">
               <Button size="sm" onClick={() => setCloneOpen(true)}>
-                <Copy /> Clone
+                <Copy /> {tt.button(transport)}
               </Button>
             </div>
           </div>
@@ -67,25 +70,59 @@ export function RepoLayout() {
       <div className="container page" style={{ minHeight: '60vh' }}>
         {q.isPending ? <SkeletonRows rows={6} /> : <Outlet />}
       </div>
-      <Dialog open={cloneOpen} onClose={() => setCloneOpen(false)} title="Clone this repository">
-        <div className="stack">
-          <div className="field">
-            <span className="field-label">HTTPS (token as password)</span>
-            <CopyBlock text={`git clone ${httpClone}`} />
-            <span className="hint">Any user name works with your access token as the password.</span>
-          </div>
-          <div className="field">
-            <span className="field-label">SSH</span>
-            {sshClone ? <CopyBlock text={`git clone ${sshClone}`} /> : <span className="hint">SSH is not enabled on this server (identity extension off or ORE_SSH_ADDR=off).</span>}
-            {sshClone ? <span className="hint">Add your public key under Settings → SSH keys first.</span> : null}
-          </div>
-          <div className="field">
-            <span className="field-label">No clone at all</span>
-            <CopyBlock text={`ore commit ${org}/${repo} -m "message" path/to/file`} />
-            <span className="hint">Server-side commits through the API: the CLI and the Edit button on any file write without a working copy.</span>
-          </div>
-        </div>
+      <Dialog open={cloneOpen} onClose={() => setCloneOpen(false)} title={tt.dialogTitle(transport)}>
+        <ClonePanel transport={transport} base={base} org={org} repo={repo} httpClone={httpClone} sshClone={sshClone} />
       </Dialog>
     </>
+  )
+}
+
+/** How to get the repository onto a workstation, for the organization's git transport mode. */
+export function ClonePanel({ transport, base, org, repo, httpClone, sshClone }: { transport: TransportState; base: string; org: string; repo: string; httpClone: string; sshClone: string | null }) {
+  const reason = tt.reason(transport.reason)
+  return (
+    <div className="stack">
+      {transport.mode === 'off' ? (
+        <>
+          <Callout tone="info">
+            <b>{tt.offTitle(org)}</b>
+            <p>{tt.offBody}</p>
+            {reason ? <p className="small">{reason}</p> : null}
+          </Callout>
+          <div className="field">
+            <span className="field-label">{tt.oreFlowLabel}</span>
+            <CopyBlock text={tt.oreFlow(base, org, repo)} />
+            <span className="hint">{tt.oreFlowHint}</span>
+          </div>
+        </>
+      ) : null}
+      {gitCloneAllowed(transport) ? (
+        <>
+          {transport.mode === 'read-only' ? (
+            <Callout tone="warn">
+              <b>{tt.readOnlyTitle(org)}</b>
+              <p>{tt.readOnlyBody}</p>
+              {reason ? <p className="small">{reason}</p> : null}
+              <CopyBlock text={tt.readOnlyFlow(org, repo)} />
+            </Callout>
+          ) : null}
+          <div className="field">
+            <span className="field-label">{tt.httpLabel}</span>
+            <CopyBlock text={tt.gitClone(httpClone)} />
+            <span className="hint">{tt.httpHint}</span>
+          </div>
+          <div className="field">
+            <span className="field-label">{tt.sshLabel}</span>
+            {sshClone ? <CopyBlock text={tt.gitClone(sshClone)} /> : <span className="hint">{tt.sshDisabled}</span>}
+            {sshClone ? <span className="hint">{tt.sshHint}</span> : null}
+          </div>
+        </>
+      ) : null}
+      <div className="field">
+        <span className="field-label">{tt.noCloneLabel}</span>
+        <CopyBlock text={tt.oreCommit(org, repo)} />
+        <span className="hint">{tt.noCloneHint}</span>
+      </div>
+    </div>
   )
 }

@@ -952,3 +952,64 @@ func TestUIPaginationAndFilters(t *testing.T) {
 		t.Fatalf("unknown org filter: %d", code)
 	}
 }
+
+// The repository page follows the organization's git transport mode: on shows
+// the git clone line, read-only adds that pushes go through ore save, off
+// replaces the clone line with the Ore client and shows the recorded reason.
+func TestUIRepoCloneHintFollowsGitTransport(t *testing.T) {
+	u := newUI(t)
+	u.populate()
+	u.login(adminTok)
+	hint := func() string {
+		t.Helper()
+		code, body := u.get("/acme/app")
+		if code != 200 {
+			t.Fatalf("GET /acme/app: %d %s", code, firstLine(body))
+		}
+		i := strings.Index(body, `id="clone-hint"`)
+		if i < 0 {
+			t.Fatalf("no clone hint on the repository page")
+		}
+		end := strings.Index(body[i:], "</p>")
+		return body[i : i+end]
+	}
+	set := func(mode, reason string) {
+		t.Helper()
+		in := map[string]any{"git_transport": mode}
+		if reason != "" {
+			in["reason"] = reason
+		}
+		if code := u.api("PATCH", "/api/v0/orgs/acme/settings", in, nil); code != 200 {
+			t.Fatalf("PATCH settings %s: %d", mode, code)
+		}
+	}
+
+	h := hint()
+	if !strings.Contains(h, "git clone http://test/acme/app.git") || strings.Contains(h, "ore save") || strings.Contains(h, "ore open") {
+		t.Fatalf("on: %s", h)
+	}
+
+	set("read-only", "pushes go through ore save")
+	h = hint()
+	for _, want := range []string{"git clone http://test/acme/app.git", "git pushes are off for acme", "(pushes go through ore save)", "<code>ore save</code>", "ore open acme/app"} {
+		if !strings.Contains(h, want) {
+			t.Errorf("read-only: missing %q in %s", want, h)
+		}
+	}
+
+	set("off", "last day of git was Friday")
+	h = hint()
+	if strings.Contains(h, "git clone") || strings.Contains(h, ".git<") {
+		t.Errorf("off: still teaches git clone: %s", h)
+	}
+	for _, want := range []string{"git is off for acme", "(last day of git was Friday)", "<code>ore login http://test</code>", "<code>ore open acme/app</code>"} {
+		if !strings.Contains(h, want) {
+			t.Errorf("off: missing %q in %s", want, h)
+		}
+	}
+
+	set("on", "")
+	if h = hint(); !strings.Contains(h, "git clone http://test/acme/app.git") || strings.Contains(h, "ore open") {
+		t.Errorf("back on: %s", h)
+	}
+}

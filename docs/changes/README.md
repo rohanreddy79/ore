@@ -61,3 +61,7 @@ Merged after the full gate with the Playwright suite. Integration: `web.Server.M
 ## Git transport off (PR after the workstation client, 2026-10-19)
 
 The per-organization switch of ADR 0016 §3: `org_settings` (migration `0012_org_settings.sql`) with `git_transport` (`on`, `read-only`, `off`), read by smart HTTP and SSH on every request and changed through `GET/PATCH /api/v0/orgs/{org}/settings` (identity extension: members read, owners and administrators write) or `ore org git-transport`. Additive edits to `internal/githttp`, `internal/identity` (incl. `sshd`), `internal/ledger` and `cmd/ore/main.go`. Write-up: `git-transport-off.md`; the team checklist is `docs/10` §7.
+
+## Clone hints follow the git transport (PR after the git transport switch, 2026-10-19)
+
+The web app's clone dialog and empty-repository hint, and the server-rendered repository page, read the organization's `git_transport` and stop teaching `git clone` and `git push` when the bridge would refuse them. Write-up: `ui-clone-hints.md`.

@@ -70,7 +70,7 @@ Checked by hand against a real `ore serve` (output in the PR). The subcommands a
 - **Fetches in flight.** The mode is read per request. A `git push` that already passed the advertisement when the mode changed finishes (receive-pack is running); the next request is refused. A clone whose advertisement was refused never starts.
 - **`read-only` and the advertisement.** `git push` asks for `info/refs?service=git-receive-pack` first, so the refusal reaches the user before any object is sent; `git fetch` asks for `git-upload-pack` and passes.
 - **Only git is refused.** The repository pages, the archive endpoint, `GET .../refs`, `.../log`, `.../file`, the diff, the commits endpoint and the change endpoints answer as before, for the same users. `ore open` of a repository whose organization is off takes the same path as before.
-- **The web app still shows `git clone` lines** on the repository page and in the empty-repository hint, whatever the mode; they fail with the message above when the transport is off. Hiding them behind `GET /api/v0/orgs/{org}/settings` (and showing `ore open org/repo` instead) is a follow-up for the web app, which this change does not touch.
+- **The web app and the server-rendered repository page follow the mode**: see `ui-clone-hints.md`.
 - **A server without the identity extension** has no settings routes (the owner check is identity's). The transports still read `org_settings`, so the switch works wherever the row is set; in practice `ore serve` always applies identity.
 - **The single admin token** (no identity) authenticates every git request as `human/admin`, and the switch refuses it like any other credential.
 - **Concurrent changes.** SQLite serializes writers; on Postgres two first-time changes to the same organization can race on the primary key and one of them fails with a unique violation (reported as an error to that caller; the other change holds). A retry sees the row and succeeds.
@@ -79,6 +79,5 @@ Checked by hand against a real `ore serve` (output in the PR). The subcommands a
 
 ## Not done
 
-- Hiding the git clone lines in the web app and the server-rendered repository page when the mode is not `on`, and showing `ore open org/repo` in their place.
 - A site-wide default for new organizations (every organization starts `on`); an `ore serve` flag to disable the bridge for the whole instance.
 - `ore open`, `ore status` reporting the mode; `ore doctor` listing organizations still on git.
