@@ -1,7 +1,7 @@
 # deploy
 
 - `../cmd/ore` builds to one static binary; `ore serve` needs `git` on the host and `docker` for container pipelines and deployments (`--executor host` runs pipelines on the host; `--executor none` records only).
-- `Dockerfile` packages the binary with git and the docker CLI (multi-arch with `docker buildx build --platform linux/amd64,linux/arm64`); `solo/compose.yaml` runs it with the Docker socket mounted, an optional Postgres (`COMPOSE_PROFILES=postgres`) and an optional Litestream replicator (`COMPOSE_PROFILES=litestream`).
+- `Dockerfile` builds the web app in a Node stage, embeds it in the binary and packages that with git (including `git-http-backend`, from Alpine's `git-daemon`) and the docker CLI (multi-arch with `docker buildx build --platform linux/amd64,linux/arm64`); `solo/compose.yaml` runs it with the Docker socket mounted, an optional Postgres (`COMPOSE_PROFILES=postgres`) and an optional Litestream replicator (`COMPOSE_PROFILES=litestream`).
 - `systemd/ore.service` runs the binary on a host; `install.sh` installs a release (checksum-verified, no sudo); `litestream.yml` replicates the SQLite ledger to S3; `RELEASING.md` is the release process.
 - `ore demo` runs the whole loop on a sample repository in a temporary data directory (see the README).
 

@@ -1,0 +1,22 @@
+# Keep the build context small: deploy/Dockerfile copies the tree and builds the
+# web app and the binary inside the image, so local build output and installed
+# dependencies must not leak in.
+.git
+.github
+.claude
+bin/
+dist/
+data/
+ore-data/
+.ore/
+ui/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+ui/e2e/.auth/
+internal/webapp/dist/*
+!internal/webapp/dist/.gitkeep
+.env
+.env.*
+*.local
+.DS_Store
