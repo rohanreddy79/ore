@@ -86,6 +86,24 @@ test.describe('edge cases', () => {
   })
 
   test('absent fleet, learn and webhooks APIs hide their sections with a hint and no errors', async ({ page }) => {
+    // Simulate a server without those extensions, whatever this server has.
+    const absent = ['agent.fleet', 'learn', 'connect.webhooks']
+    await page.route('**/api/v0/webapp/features', async (r) => {
+      const resp = await r.fetch()
+      const json = await resp.json()
+      json.fleet = false
+      json.learn = false
+      json.webhooks = false
+      json.extensions = (json.extensions || []).filter((n: string) => !absent.includes(n))
+      await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(json) })
+    })
+    const gone = (r: { fulfill: (o: object) => Promise<void> }) =>
+      r.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not found"}' })
+    await page.route('**/api/v0/fleet/**', gone)
+    await page.route('**/api/v0/repos/*/*/fleet/**', gone)
+    await page.route('**/api/v0/learn/**', gone)
+    await page.route('**/api/v0/repos/*/*/learn/**', gone)
+    await page.route('**/api/v0/webhooks/**', gone)
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))
     page.on('console', (m) => {

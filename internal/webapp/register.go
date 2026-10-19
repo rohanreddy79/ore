@@ -5,8 +5,6 @@ package webapp
 import (
 	"context"
 	"net/http"
-	"net/url"
-	"os"
 	"strings"
 
 	"github.com/orevcs/ore/internal/registry"
@@ -34,24 +32,22 @@ func Extension(ctx context.Context, s *web.Server) error {
 func routes(srv *web.Server, mux *http.ServeMux, info *Info) {
 	s := serverT{srv}
 	app := appHandler()
-	mux.Handle("GET /app", http.RedirectHandler(Prefix, http.StatusMovedPermanently))
-	// Go's mux refuses patterns that overlap without one being more specific,
-	// and internal/web owns host-less wildcards such as GET /{org}/{name} and
-	// GET /{org}/{name}/changes/{n}. Host-less patterns below cover every
-	// path shape that cannot collide with those (1, 2, 3 and 5+ segments under
-	// /app/); the host-qualified catch-alls cover the rest (4-segment paths
-	// like /app/org/repo/issues) for the hosts this server is reached as,
-	// because a pattern with a host never conflicts and always wins. The same
-	// rule lets "/" redirect to the app on those hosts.
-	mux.Handle("GET /app/{$}", app)
-	mux.Handle("GET /app/{a}", app)
-	mux.Handle("GET /app/{a}/{b}", app)
-	mux.Handle("GET /app/{a}/{b}/{c}/{rest...}", app)
-	for _, h := range knownHosts(s.Server) {
-		mux.Handle("GET "+h+"/app/{path...}", app)
-		if info.Built {
-			mux.Handle("GET "+h+"/{$}", http.RedirectHandler(Prefix, http.StatusFound))
+	// Served ahead of the mux through web.Server.Mount, so no ServeMux pattern
+	// can conflict with the server-rendered routes, on any host. "/app" itself
+	// redirects to "/app/"; deeper paths are the app's client-side routes.
+	srv.Mount(Prefix, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == strings.TrimSuffix(Prefix, "/") {
+			http.Redirect(w, r, Prefix, http.StatusMovedPermanently)
+			return
 		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		app.ServeHTTP(w, r)
+	}))
+	if info.Built {
+		srv.SetIndex(http.RedirectHandler(Prefix, http.StatusFound))
 	}
 
 	// Session: the app signs in with a token pasted into a form and keeps the
@@ -103,36 +99,4 @@ func routes(srv *web.Server, mux *http.ServeMux, info *Info) {
 	mux.HandleFunc("GET /api/v0/webapp/search", s.withActor(func(w http.ResponseWriter, r *http.Request, a actorT) error {
 		return search(s.Server, w, r)
 	}))
-}
-
-// knownHosts lists the host names the app's catch-all routes are registered
-// for: the host of the server's base URL, the loopback names, and anything in
-// ORE_WEBAPP_HOSTS (comma-separated) for deployments behind a proxy that
-// rewrites the Host header. Ports are not part of a host pattern.
-func knownHosts(s *web.Server) []string {
-	seen := map[string]bool{}
-	var out []string
-	add := func(h string) {
-		h = strings.TrimSpace(strings.ToLower(h))
-		h = strings.TrimPrefix(strings.TrimSuffix(h, "]"), "[")
-		if h == "" || strings.ContainsAny(h, "/ \t") || seen[h] {
-			return
-		}
-		seen[h] = true
-		out = append(out, h)
-	}
-	if s.BaseURL != "" {
-		if u, err := url.Parse(s.BaseURL); err == nil {
-			add(u.Hostname())
-		}
-	}
-	add("localhost")
-	add("127.0.0.1")
-	add("::1")
-	for _, h := range strings.Split(os.Getenv("ORE_WEBAPP_HOSTS"), ",") {
-		if u, err := url.Parse("http://" + strings.TrimSpace(h)); err == nil && strings.TrimSpace(h) != "" {
-			add(u.Hostname())
-		}
-	}
-	return out
 }

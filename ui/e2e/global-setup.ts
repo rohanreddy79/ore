@@ -30,6 +30,7 @@ export default async function globalSetup() {
   child.stdout?.on('data', (d) => chunks.push(String(d)))
   child.stderr?.on('data', (d) => chunks.push(String(d)))
   child.unref()
+  mkdirSync(join(__dirname, '.auth'), { recursive: true })
   writeFileSync(join(__dirname, '.auth', 'server.json'), JSON.stringify({ pid: child.pid, data, log }))
   const deadline = Date.now() + 30_000
   for (;;) {

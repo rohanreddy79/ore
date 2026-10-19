@@ -49,3 +49,7 @@ The server-rendered pages from the "UI v1" slice stay as the no-JavaScript fallb
 ## Wave 2 (merged into `main` on 2026-10-19)
 
 All six slices merged cleanly; two integration fixes followed: the `connect/webhooks` blank import in `cmd/ore/main.go` (the webhooks slice could not edit that file), and a dialect-aware `ledger.DB.TableExists` replacing a `sqlite_master` query in the UI that failed on Postgres. `scripts/e2e.sh` (SQLite, Docker demo) and `scripts/test-postgres.sh` pass on the merged `main`. Hand-over notes: `agent-fleet.md`, `learn.md`, `ui-v1.md`, `webhooks.md`, `ops.md`, `github-import.md`. The web app (`slice/webapp`) arrives separately as a pull request.
+
+## Web app (merged into `main` on 2026-10-19, PR #1)
+
+Merged after the full gate with the Playwright suite. Integration: `web.Server.Mount` and `SetIndex` were added so the app mounts `/app/` ahead of the mux on any host (the host-list workaround is gone); the Playwright global setup now creates its state directory; the absent-APIs test simulates absence by intercepting the features endpoint.

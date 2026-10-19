@@ -6,12 +6,25 @@ Ore is an open-source platform for the whole software loop — signal, plan, cha
 
 ## Status
 
-**v0 runs.** One Go binary (`ore`) with: git hosting over smart HTTP with a protected default branch; issues; changes with a stable change-id and **server-side merge** (`merge-tree` + compare-and-swap, no working copy); **server-side commits through the API** (no clone); container pipelines from `.ore/pipeline.yaml` (or inferred); container deployments to preview and production with rollback; **the agent loop** (any command as the agent, Claude Code by default) that plans, changes, verifies, lands and deploys according to the repository's autonomy level; a CloudEvents **ledger** behind every step; a REST API, a CLI and a minimal UI. `ore demo` runs the whole loop on a sample repository in about 15 seconds on a laptop (transcript: `deploy/solo/DEMO.md`). Tests cover every package, including a real `git push` over HTTP and the full loop. Everything after v0 is in `docs/09-roadmap.md`; the research is in `research/`, the design in `docs/`, the decisions in `docs/adr/`, the contracts in `spec/`.
+**v0.1 on `main`** (18–19 October 2026): one Go binary, `ore`, with
+
+- **Source control for agents**: git over HTTP and SSH with users, scoped tokens, SSH keys and agent principals; a protected default branch; server-side commits through the API (no clone) and server-side merges with compare-and-swap refs.
+- **Review**: changes with stable change-ids, patch sets, interdiffs, comments in human/bot/agent lanes, structured reviews, stacks, and three landing strategies (queue, land-when-green, optimistic with automatic revert).
+- **Pipelines**: `.ore/pipeline.yaml` or unmodified GitHub Actions workflows (compiled, with divergences surfaced), content-addressed tasks, trust-scoped caches, artifacts, encrypted secrets by reference, container or host execution.
+- **Delivery**: environments with policy and N-of-M approvals, local or remote (SSH) Docker targets, health-gated rollouts with automatic rollback and failure issues, preview TTLs, a DORA view.
+- **The loop**: an agent (Claude Code by default, any command otherwise) plans, changes, verifies, lands and deploys according to the repository's autonomy level (L0–L5), with an adversarial reviewer, budgets, watcher agents that react to failures, evidence-based level changes and a pause switch.
+- **Connectors**: an MCP server with a safe-outputs write gateway, outbound CloudEvents webhooks per Standard Webhooks with retry and replay, audit export, a GitHub adapter (link, mirror, webhooks, statuses) and a GitHub importer with a fidelity report.
+- **Learning**: lessons that run as pipelines on your own repository, learn-at-the-error, and the first track (five lessons; two of them in Hindi and Brazilian Portuguese).
+- **Operations**: SQLite or Postgres, backups and restore, `ore migrate`, `ore doctor`, metrics, graceful drain, release packaging and an install script.
+- **Two user interfaces**: a GitHub-class web app at `/app/` (design system, diff viewer with patch sets, live logs and ledger, command palette, keyboard navigation, dark and light) and server-rendered pages as the no-JavaScript fallback; a REST API, a CLI, and `ore demo`.
+- **The ledger** under all of it: every transition is a CloudEvent written with the entity it describes.
+
+Every package has tests (309 Go test functions, 70 web unit tests, 25 browser end-to-end tests); the merge gate `scripts/e2e.sh` runs them with the Docker demo, and `scripts/test-postgres.sh` runs the suite on Postgres. What each slice delivered and what it could not verify is in `docs/changes/`. The roadmap to v1 and beyond is `docs/09-roadmap.md`.
 
 ## The three-minute demo
 
 ```bash
-CGO_ENABLED=0 go build -o bin/ore ./cmd/ore
+CGO_ENABLED=0 go build -o bin/ore ./cmd/ore   # add `(cd ui && npm ci && npm run build)` first for the web app
 ./bin/ore demo
 ```
 

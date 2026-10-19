@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -54,12 +55,35 @@ type Server struct {
 	Services map[string]any
 
 	routes []func(mux *http.ServeMux)
+	mounts []mount
+	index  http.Handler
 	// root is the handler Handler built; UI forms dispatch to the slices' own
 	// API routes through it in-process (see ui_core.go).
 	root http.Handler
 	// StreamInterval is the poll interval of the SSE streams (500 ms unless a test shortens it).
 	StreamInterval time.Duration
 }
+
+type mount struct {
+	prefix string
+	h      http.Handler
+}
+
+// Mount serves every request under prefix (which must start and end with "/",
+// e.g. "/app/") with h, ahead of the mux and therefore free of ServeMux
+// pattern conflicts. The prefix without its trailing slash is served too.
+// Longer prefixes win over shorter ones.
+func (s *Server) Mount(prefix string, h http.Handler) {
+	if !strings.HasPrefix(prefix, "/") || !strings.HasSuffix(prefix, "/") || prefix == "/" {
+		panic("web.Mount: prefix must look like /name/")
+	}
+	s.mounts = append(s.mounts, mount{prefix: prefix, h: h})
+	sort.SliceStable(s.mounts, func(i, j int) bool { return len(s.mounts[i].prefix) > len(s.mounts[j].prefix) })
+}
+
+// SetIndex replaces the handler for the exact path "/" (for example to send
+// browsers to a single-page app once it is built).
+func (s *Server) SetIndex(h http.Handler) { s.index = h }
 
 // AddRoutes registers a function that mounts routes on the server's mux.
 // Extensions call this instead of editing Handler. Patterns use Go 1.22
@@ -642,6 +666,16 @@ func (s *Server) Handler() http.Handler {
 		if s.Git != nil && strings.Contains(r.URL.Path, ".git/") {
 			s.Git.ServeHTTP(w, r)
 			return
+		}
+		if s.index != nil && r.URL.Path == "/" {
+			s.index.ServeHTTP(w, r)
+			return
+		}
+		for _, m := range s.mounts {
+			if strings.HasPrefix(r.URL.Path, m.prefix) || r.URL.Path == strings.TrimSuffix(m.prefix, "/") {
+				m.h.ServeHTTP(w, r)
+				return
+			}
 		}
 		mux.ServeHTTP(w, r)
 	})
