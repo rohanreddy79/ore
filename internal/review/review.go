@@ -22,6 +22,11 @@ import (
 type Service struct {
 	DB       *ledger.DB
 	ReposDir string
+
+	// Verifier runs the repository's pipeline on a commit; the review.v1
+	// extension sets it to the pipelines runner. The land_when_green and
+	// optimistic landing strategies fail closed without it (see landing.go).
+	Verifier Verifier
 }
 
 // ErrNothingToMerge means the source is already contained in the target.
@@ -87,6 +92,9 @@ func (s *Service) Open(ctx context.Context, r ledger.Repo, req OpenRequest, acto
 	}
 	if existing, err := s.DB.OpenChangeBySourceRef(ctx, r, src); err == nil {
 		if existing.HeadOID != head {
+			if _, _, err := s.recordPatchSet(ctx, r, existing, base, head, actor); err != nil {
+				return existing, err
+			}
 			if err := s.DB.UpdateChangeHead(ctx, r, existing, head, actor); err != nil {
 				return existing, err
 			}
@@ -104,6 +112,9 @@ func (s *Service) Open(ctx context.Context, r ledger.Repo, req OpenRequest, acto
 	}
 	c := ledger.Change{ChangeID: NewChangeID(), Title: title, Body: req.Body, SourceRef: src, TargetRef: tgt, BaseOID: base, HeadOID: head, Provenance: req.Provenance}
 	if err := s.DB.InsertChange(ctx, r, &c, actor); err != nil {
+		return c, err
+	}
+	if _, _, err := s.recordPatchSet(ctx, r, c, c.BaseOID, c.HeadOID, actor); err != nil {
 		return c, err
 	}
 	return c, nil
@@ -132,6 +143,9 @@ func (s *Service) Merge(ctx context.Context, r ledger.Repo, c ledger.Change, act
 		return "", fmt.Errorf("source %s: %w", c.SourceRef, err)
 	}
 	if head != c.HeadOID {
+		if _, _, err := s.recordPatchSet(ctx, r, c, "", head, actor); err != nil {
+			return "", err
+		}
 		if err := s.DB.UpdateChangeHead(ctx, r, c, head, actor); err != nil {
 			return "", err
 		}
@@ -161,6 +175,9 @@ func (s *Service) Merge(ctx context.Context, r ledger.Repo, c ledger.Change, act
 		mergeOID, err := gitx.CommitTree(ctx, rp, tree, []string{old, head}, msg, author)
 		if err != nil {
 			return "", err
+		}
+		if beforeCAS != nil {
+			beforeCAS(c.TargetRef)
 		}
 		if err := gitx.UpdateRef(ctx, rp, c.TargetRef, mergeOID, old); err != nil {
 			lastErr = err
