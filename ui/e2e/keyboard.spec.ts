@@ -4,6 +4,8 @@ import { unfocus } from './api'
 test.describe('keyboard-only navigation', () => {
   test('palette, go-to chords, list navigation and help', async ({ page }) => {
     await page.goto('/app/')
+    // The shortcut listener mounts with the shell; wait for the page before pressing keys.
+    await page.locator('main h1').first().waitFor()
     await unfocus(page)
     // ⌘K / Ctrl+K opens the palette; typing filters; Enter navigates.
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k')
@@ -45,6 +47,7 @@ test.describe('keyboard-only navigation', () => {
     })
     expect(focused.ring).toBe(true)
     // / opens search; c opens the new-issue form from the list.
+    await page.locator('main h1').first().waitFor()
     await unfocus(page)
     await page.keyboard.press('/')
     await expect(page.getByRole('combobox', { name: 'Search or jump to' })).toBeFocused()
