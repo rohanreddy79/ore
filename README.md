@@ -42,6 +42,27 @@ Claude Code authenticates with `ANTHROPIC_API_KEY` in the server's environment (
 
 Autonomy levels per repository: L2 opens the change and stops (default), L3 lands it when the pipeline is green, L4 also deploys to production. The ledger (`ore events`) records every step with the actor and provenance.
 
+## Working without git
+
+The `ore` binary is also the workstation client (ADR 0016): a developer works on a repository with no git on the machine and never meets a branch, a remote, a rebase or a staging area. The nouns are the repository, the change and its patch sets; the verbs are open, save, sync, land and status. The working copy is a cache; the ledger is the source of truth.
+
+```bash
+ore login http://ore.example.com --token ore_…      # once per server; ORE_TOKEN works too
+ore open acme/app                                   # the active area (the paths the pipeline declares), in seconds even for 100k files
+cd app && $EDITOR src/uploader.go                   # edit with anything
+ore save -m "Retry uploads with backoff"            # a commit through the API; opens change #12 (the first save) or adds a patch set
+ore sync                                            # bring the tree to the tip; local edits are kept, conflicts written side by side
+ore land                                            # ask for landing under the repository's autonomy level: landed, blocked and why, or reverted
+ore status                                          # the change, its patch sets, pipeline runs and deployments, and what is pending here
+```
+
+- `ore open ORG/REPO [DIR]` streams a tar of the paths `.ore/pipeline.yaml` declares (plus the file) at the default branch's tip; `--all` takes the whole tree. It writes `.ore/workspace.json` (server, repository, base commit, materialized paths, a SHA-256 manifest of every file). Opening the 10,000-file bench repository takes about a second.
+- `ore save -m MSG` diffs the tree against the manifest (added, changed, deleted, mode changes; `.oreignore` uses gitignore syntax), posts the edits as one server-side commit on a branch the user never sees, opens the change on the first save and appends a patch set afterwards. When the server is unreachable the save is queued in `.ore/pending.json` and sent by the next save or sync.
+- `ore sync` catches up with saves others made to the change, then merges the default branch into the change on the server and refreshes the tree. A file edited locally and changed upstream is a conflict: the upstream version is written beside it as `<path>.upstream` (delete it when done), or merged in place with markers under `--inline`. A save is refused while a conflict is unresolved.
+- `ore land` uses the strategy the autonomy level implies: below L3 the server merges at once (the policy decides), at L3 the pipeline verifies the head first, at L4 and above the merge happens first and a red verification reverts it. The exit status is 0 only when the change landed.
+
+The git bridge stays for migration and for tools that need it (`git clone`, `git push`), and the server keeps git as its object format; the workstation needs neither. `docs/changes/client.md` has the details and the edge cases.
+
 ## Start here
 
 1. `docs/00-executive-summary.md` — two pages.

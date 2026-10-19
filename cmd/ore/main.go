@@ -26,6 +26,7 @@ import (
 
 	"github.com/orevcs/ore/internal/ledger"
 	"github.com/orevcs/ore/internal/web"
+	"github.com/orevcs/ore/internal/workspace"
 
 	// Feature slices wire themselves in through internal/registry.
 	_ "github.com/orevcs/ore/internal/agent/fleet"
@@ -72,13 +73,16 @@ func main() {
 		usage()
 	case "org", "repo", "commit", "issue", "change", "run", "deploy", "agent", "events", "api":
 		err = runClient(os.Args[1], args)
+	case "login", "open", "save", "sync", "land", "status":
+		cwd, _ := os.Getwd()
+		err = runWorkspace(os.Args[1], args, cwd, os.Stdin, os.Stdout)
 	default:
 		fmt.Fprintf(os.Stderr, "ore: unknown command %q\n\n", os.Args[1])
 		usage()
 		os.Exit(2)
 	}
 	if err != nil {
-		if !errors.Is(err, errDoctorFailed) {
+		if !errors.Is(err, errDoctorFailed) && !errors.Is(err, errNotLanded) {
 			fmt.Fprintln(os.Stderr, "ore:", err)
 		}
 		os.Exit(1)
@@ -99,6 +103,14 @@ operations (ORE_DATA, ORE_DB_URL or --data/--db)
   ore config                                           print the effective configuration (secrets redacted)
   ore backup --to DIR|s3://bucket/prefix               ledger copy and dump, git bundles, token and keys, manifest
   ore restore --from DIR [--data DIR] [--db URL]       rebuild an empty data directory from a backup
+
+working without git (ADR 0016; ORE_TOKEN, else ~/.config/ore/credentials written by ore login)
+  ore login URL [--token T]                            store the token for a server (or pipe it on stdin)
+  ore open ORG/REPO [DIR] [--all] [--url URL]          materialize the active area (the pipeline's paths), or the whole tree
+  ore save -m MSG                                      record the edits as a patch set of your change (queued if offline)
+  ore sync [--inline]                                  bring the tree to the tip; conflicts side by side, or inline with markers
+  ore land                                             ask for landing under the repository's autonomy level
+  ore status                                           the change, its patch sets, runs and deployments, and what is pending here
 
 client (ORE_URL, ORE_TOKEN or --url/--token)
   ore org create NAME | org list
@@ -140,11 +152,9 @@ type client struct {
 
 func newClient(fl *flags) *client {
 	base := strings.TrimRight(fl.str("url", envOr("ORE_URL", "http://localhost:7777")), "/")
-	token := fl.str("token", os.Getenv("ORE_TOKEN"))
+	token := fl.str("token", "")
 	if token == "" {
-		if b, err := os.ReadFile(filepath.Join(envOr("ORE_DATA", "ore-data"), "token")); err == nil {
-			token = strings.TrimSpace(string(b))
-		}
+		token, _ = workspace.TokenFor(base) // ORE_TOKEN, the credentials file, the data directory's token
 	}
 	return &client{base: base, token: token, http: &http.Client{Timeout: 60 * time.Minute}}
 }

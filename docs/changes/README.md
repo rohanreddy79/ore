@@ -53,3 +53,7 @@ All six slices merged cleanly; two integration fixes followed: the `connect/webh
 ## Web app (merged into `main` on 2026-10-19, PR #1)
 
 Merged after the full gate with the Playwright suite. Integration: `web.Server.Mount` and `SetIndex` were added so the app mounts `/app/` ahead of the mux on any host (the host-list workaround is gone); the Playwright global setup now creates its state directory; the absent-APIs test simulates absence by intercepting the features endpoint.
+
+## Workstation client (PR after the scale programme, 2026-10-19)
+
+`ore login`, `ore open`, `ore save`, `ore sync`, `ore land`, `ore status` (ADR 0016 §2): the developer works with no git on the machine. Owns `internal/workspace/` and `cmd/ore/workspace.go`; adds the archive and diff endpoints and the `base`/`merge`/`encoding` fields of the commits endpoint in `internal/web`. Write-up: `client.md`.
