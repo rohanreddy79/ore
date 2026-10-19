@@ -73,3 +73,39 @@ func TestRunOnHost(t *testing.T) {
 		t.Fatalf("expected queued/started/finished, got %d", len(evs))
 	}
 }
+
+func TestSparseMaterialization(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	db, err := ledger.Open(ctx, filepath.Join(dir, "ore.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	org, _ := db.CreateOrg(ctx, "acme", ledger.System)
+	repo, _ := db.CreateRepo(ctx, org, "mono", "main", 2, 8080, ledger.System)
+	reposDir := filepath.Join(dir, "repos")
+	rp := filepath.Join(reposDir, "acme", "mono.git")
+	if err := gitx.InitBare(ctx, rp, "main"); err != nil {
+		t.Fatal(err)
+	}
+	oid, err := gitx.CommitFiles(ctx, rp, "", []gitx.FileEdit{
+		{Path: ".ore/pipeline.yaml", Content: []byte("version: 0\npaths: [svc/a]\ntasks:\n  - id: check\n    run: test -f svc/a/main.txt && test ! -e svc/b && test ! -e huge.bin\n")},
+		{Path: "svc/a/main.txt", Content: []byte("a")},
+		{Path: "svc/b/main.txt", Content: []byte("b")},
+		{Path: "huge.bin", Content: []byte(strings.Repeat("x", 1<<20))},
+	}, "mono", gitx.Author{Name: "t", Email: "t@t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitx.UpdateRef(ctx, rp, "refs/heads/main", oid, gitx.ZeroOID)
+	rn := &Runner{DB: db, ReposDir: reposDir, LogsDir: filepath.Join(dir, "logs"), Executor: "host"}
+	run, err := rn.Run(ctx, repo, oid, nil, ledger.System)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log, _ := os.ReadFile(run.LogPath)
+	if run.Status != "succeeded" || !strings.Contains(string(log), "(sparse)") {
+		t.Fatalf("sparse run: %s\n%s", run.Status, log)
+	}
+}

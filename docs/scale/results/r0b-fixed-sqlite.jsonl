@@ -1,0 +1,12 @@
+{"bytes":0,"concurrency":5,"elapsed_s":1.68,"error_kinds":{},"errors":0,"max_ms":1612.47,"ok":5,"p50_ms":1610.46,"p95_ms":1610.8,"p99_ms":1610.8,"repos":5,"rps":2.96,"scenario":"push"}
+{"bytes":850179362,"concurrency":100,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":715.57,"ok":13791,"p50_ms":132.06,"p95_ms":304.48,"p99_ms":404.84,"requests":13890,"rps":689.4,"scenario":"api"}
+{"bytes":16998168,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":544.83,"ok":2211,"p50_ms":81.34,"p95_ms":237.47,"p99_ms":327.54,"rps":110.52,"scenario":"api.events"}
+{"bytes":11745,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":715.57,"ok":2349,"p50_ms":123.76,"p95_ms":300.02,"p99_ms":394.39,"rps":117.42,"scenario":"api.issues"}
+{"bytes":1852950,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":646.28,"ok":2246,"p50_ms":138.33,"p95_ms":295.75,"p99_ms":390.62,"rps":112.27,"scenario":"api.log"}
+{"bytes":5241549,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":595.69,"ok":2379,"p50_ms":137.83,"p95_ms":298.75,"p99_ms":403.68,"rps":118.92,"scenario":"api.file"}
+{"bytes":826063720,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":615.54,"ok":2360,"p50_ms":182.15,"p95_ms":350.14,"p99_ms":473.6,"rps":117.97,"scenario":"api.tree"}
+{"bytes":11230,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":710.94,"ok":2246,"p50_ms":120.7,"p95_ms":296.65,"p99_ms":387.19,"rps":112.27,"scenario":"api.changes"}
+{"bytes":18600,"concurrency":20,"count":200,"elapsed_s":5.44,"error_kinds":{},"errors":0,"max_ms":1506.86,"ok":200,"p50_ms":452.64,"p95_ms":923.71,"p99_ms":1440.38,"rps":36.72,"scenario":"commits"}
+{"bytes":0,"concurrency":5,"count":10,"elapsed_s":17.12,"error_kinds":{},"errors":0,"max_ms":9070.77,"ok":10,"p50_ms":8058.67,"p95_ms":9070.57,"p99_ms":9070.57,"rps":0.58,"scenario":"pipelines","statuses":{"succeeded":10}}
+{"bytes":0,"concurrency":5,"count":10,"elapsed_s":11.08,"error_kinds":{"failed: adapter: exit status 127":10},"errors":10,"max_ms":0,"ok":0,"p50_ms":0,"p95_ms":0,"p99_ms":0,"rps":0,"scenario":"agents","statuses":{"failed":10}}
+{"scenario":"server","peak_rss_mb":76,"peak_fds":329,"errors_in_log":99,"panics":0}

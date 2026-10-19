@@ -1,0 +1,21 @@
+server pid=95186 url=http://127.0.0.1:58656 data=/private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/data-r1 executor=host db=sqlite
+== bin/orebench push --url $ORE_URL --token $ORE_TOKEN --dir /private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/repo100m --repos 1 --concurrency 1 --prefix big
+   (11s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 20 --duration 20s --mix tree,file,log,refs
+   (21s)
+== bin/orebench commits --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 5 --count 20
+   (3s)
+== bin/orebench pipelines --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 2 --count 2 --timeout 20m
+   (51s)
+== bin/orebench agents --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 2 --count 2 --timeout 20m
+   (100s)
+   1 time=2026-10-19T03:58:10.156-04:00 level=ERROR msg=request request_id=req_000038AK5BYR4QD1NN0V method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=1386 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.155-04:00 level=ERROR msg=request request_id=req_000038AK5C00PE8ENWBJ method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=736 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.150-04:00 level=ERROR msg=request request_id=req_000038AK5C0DGQRS3561 method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=526 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.150-04:00 level=ERROR msg=request request_id=req_000038AK5BZZEH5CZ7Q5 method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=750 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.148-04:00 level=ERROR msg=request request_id=req_000038AK5BZVAS6CM4GH method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=815 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.147-04:00 level=ERROR msg=request request_id=req_000038AK5BZNQVM9D45F method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=903 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.147-04:00 level=ERROR msg=request request_id=req_000038AK5BZKFDH89NCB method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=940 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.147-04:00 level=ERROR msg=request request_id=req_000038AK5BYZ9MBFP5X4 method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=1263 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.147-04:00 level=ERROR msg=request request_id=req_000038AK5BYQE2Z5KX4H method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=1387 remote=127.0.0.1
+   1 time=2026-10-19T03:58:10.146-04:00 level=ERROR msg=request request_id=req_000038AK5C0P56CKCS35 method=GET path=/api/v0/repos/bench/big0000/tree status=500 bytes=73 duration_ms=383 remote=127.0.0.1

@@ -285,10 +285,21 @@ func CommitFiles(ctx context.Context, path, parent string, edits []FileEdit, mes
 
 // Archive extracts the tree at rev into dest (a materialized working copy for jobs).
 func Archive(ctx context.Context, path, rev, dest string) error {
+	return ArchivePaths(ctx, path, rev, dest, nil)
+}
+
+// ArchivePaths extracts only the given paths of the tree at rev into dest (a
+// sparse materialization for large repositories); nil means the whole tree.
+func ArchivePaths(ctx context.Context, path, rev, dest string, paths []string) error {
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return err
 	}
-	git := exec.CommandContext(ctx, "git", "archive", "--format=tar", rev)
+	args := []string{"archive", "--format=tar", rev}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+	git := exec.CommandContext(ctx, "git", args...)
 	git.Dir = path
 	tar := exec.CommandContext(ctx, "tar", "-x", "-C", dest)
 	pipe, err := git.StdoutPipe()
@@ -360,17 +371,50 @@ func ReadFile(ctx context.Context, path, rev, file string) ([]byte, error) {
 	return []byte(out), nil
 }
 
-// ListTree returns the paths in the tree at rev.
+// ListTree returns every path in the tree at rev (recursive). For large
+// repositories prefer ListTreeAt with a subpath or depth-one listing.
 func ListTree(ctx context.Context, path, rev string) ([]string, error) {
-	out, err := Run(ctx, path, nil, "ls-tree", "-r", "--name-only", rev)
+	return ListTreeAt(ctx, path, rev, "", true)
+}
+
+// ListTreeAt lists the tree at rev under subpath ("" for the root). With
+// recursive=false it returns the direct children only, directories carrying a
+// trailing slash, which is what a lazy file browser needs for one directory
+// of a 100k-file repository.
+func ListTreeAt(ctx context.Context, path, rev, subpath string, recursive bool) ([]string, error) {
+	subpath = strings.Trim(subpath, "/")
+	args := []string{"ls-tree"}
+	if recursive {
+		args = append(args, "-r", "--name-only")
+	}
+	args = append(args, rev)
+	if subpath != "" {
+		args = append(args, "--", subpath+"/")
+	}
+	out, err := Run(ctx, path, nil, args...)
 	if err != nil {
 		return nil, err
 	}
 	var files []string
 	for _, l := range strings.Split(strings.TrimSpace(out), "\n") {
-		if l != "" {
-			files = append(files, l)
+		if l == "" {
+			continue
 		}
+		if recursive {
+			files = append(files, l)
+			continue
+		}
+		// "<mode> <type> <oid>\t<path>"
+		tab := strings.IndexByte(l, '\t')
+		if tab < 0 {
+			continue
+		}
+		meta := strings.Fields(l[:tab])
+		name := l[tab+1:]
+		if len(meta) >= 2 && meta[1] == "tree" {
+			name += "/"
+		}
+		files = append(files, name)
 	}
 	return files, nil
 }

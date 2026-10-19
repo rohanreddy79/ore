@@ -1,0 +1,11 @@
+{"bytes":0,"concurrency":5,"elapsed_s":0.59,"error_kinds":{"push: connect while reading sideband packet\nfatal: the remote end hung up unexpectedly":5},"errors":5,"max_ms":0,"ok":0,"p50_ms":0,"p95_ms":0,"p99_ms":0,"repos":5,"rps":0,"scenario":"push"}
+{"bytes":27145340,"concurrency":100,"elapsed_s":20,"error_kinds":{"HTTP 500":12206},"errors":12206,"max_ms":353.29,"ok":18124,"p50_ms":21.19,"p95_ms":99.71,"p99_ms":149.02,"requests":30429,"rps":905.98,"scenario":"api"}
+{"bytes":0,"elapsed_s":20,"error_kinds":{"HTTP 500":6139},"errors":6139,"max_ms":0,"ok":0,"p50_ms":0,"p95_ms":0,"p99_ms":0,"rps":0,"scenario":"api.tree"}
+{"bytes":0,"elapsed_s":20,"error_kinds":{"HTTP 500":6067},"errors":6067,"max_ms":0,"ok":0,"p50_ms":0,"p95_ms":0,"p99_ms":0,"rps":0,"scenario":"api.log"}
+{"bytes":30460,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":353.29,"ok":6092,"p50_ms":24.05,"p95_ms":105.75,"p99_ms":153.04,"rps":304.52,"scenario":"api.issues"}
+{"bytes":27084915,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":242.88,"ok":6039,"p50_ms":16.57,"p95_ms":81.45,"p99_ms":123.79,"rps":301.87,"scenario":"api.events"}
+{"bytes":29965,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":327.18,"ok":5993,"p50_ms":24.2,"p95_ms":106.95,"p99_ms":157.9,"rps":299.57,"scenario":"api.changes"}
+{"bytes":18135,"concurrency":20,"count":200,"elapsed_s":2.4,"error_kinds":{"HTTP 500":5},"errors":5,"max_ms":327.24,"ok":195,"p50_ms":235.07,"p95_ms":288.9,"p99_ms":306.01,"rps":81.12,"scenario":"commits"}
+{"bytes":0,"concurrency":5,"count":10,"elapsed_s":0.01,"error_kinds":{"start: HTTP 400":10},"errors":10,"max_ms":0,"ok":0,"p50_ms":0,"p95_ms":0,"p99_ms":0,"rps":0,"scenario":"pipelines","statuses":{}}
+{"bytes":0,"concurrency":5,"count":10,"elapsed_s":1,"error_kinds":{"failed: clone: git clone --quiet --branch main /var/folders/zj/8v33jq3j0jj8qql":10},"errors":10,"max_ms":0,"ok":0,"p50_ms":0,"p95_ms":0,"p99_ms":0,"rps":0,"scenario":"agents","statuses":{"failed":10}}
+{"scenario":"server","peak_rss_mb":46,"peak_fds":584,"errors_in_log":12313,"panics":0}

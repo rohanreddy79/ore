@@ -155,10 +155,17 @@ func (s *Server) Handler() http.Handler {
 			}
 			if err := fn(w, r, *actor); err != nil {
 				code := http.StatusInternalServerError
+				if r.Context().Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					// The client went away or hit its own deadline; not a server
+					// failure. 499 (client closed request) keeps it out of the
+					// error log and the 5xx metrics.
+					jsonErr(w, 499, errors.New("request canceled"))
+					return
+				}
 				switch {
 				case errors.Is(err, ledger.ErrNotFound):
 					code = http.StatusNotFound
-				case errors.Is(err, review.ErrNothingToMerge), isConflict(err), errors.Is(err, errBadRequest):
+				case errors.Is(err, review.ErrNothingToMerge), isConflict(err), errors.Is(err, errBadRequest), errors.Is(err, errConflict):
 					code = http.StatusConflict
 					if errors.Is(err, errBadRequest) {
 						code = http.StatusBadRequest
@@ -246,17 +253,53 @@ func (s *Server) Handler() http.Handler {
 		refs, err := gitx.Refs(r.Context(), s.repoPath(repo))
 		return respond(w, err, refs)
 	})
+	// tree: ?ref= &path=<subtree> &depth=1 (children only; directories end
+	// with "/") &limit= &offset=. Recursive listings are capped so a 100k-file
+	// repository never produces a multi-megabyte response by default; the
+	// X-Ore-Tree-Total and X-Ore-Tree-Truncated headers say when to page.
 	api("GET /api/v0/repos/{org}/{name}/tree", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
 		repo, err := s.repo(r)
 		if err != nil {
 			return err
 		}
-		ref := r.URL.Query().Get("ref")
+		q := r.URL.Query()
+		ref := q.Get("ref")
 		if ref == "" {
 			ref = "refs/heads/" + repo.DefaultBranch
 		}
-		files, err := gitx.ListTree(r.Context(), s.repoPath(repo), ref)
-		return respond(w, err, files)
+		sub := strings.Trim(q.Get("path"), "/")
+		if strings.Contains(sub, "..") {
+			return fmt.Errorf("%w: bad path", errBadRequest)
+		}
+		recursive := q.Get("depth") != "1"
+		files, err := gitx.ListTreeAt(r.Context(), s.repoPath(repo), ref, sub, recursive)
+		if err != nil {
+			return gitErr(err)
+		}
+		if files == nil {
+			files = []string{}
+		}
+		limit, offset := atoi(q.Get("limit")), atoi(q.Get("offset"))
+		if limit <= 0 {
+			limit = 20000
+		}
+		if limit > 100000 {
+			limit = 100000
+		}
+		if offset < 0 {
+			offset = 0
+		}
+		total := len(files)
+		if offset > total {
+			offset = total
+		}
+		end := offset + limit
+		if end > total {
+			end = total
+		}
+		w.Header().Set("X-Ore-Tree-Total", strconv.Itoa(total))
+		w.Header().Set("X-Ore-Tree-Truncated", strconv.FormatBool(end < total || offset > 0))
+		return respond(w, nil, files[offset:end])
 	})
 	api("GET /api/v0/repos/{org}/{name}/file", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
 		repo, err := s.repo(r)
@@ -269,7 +312,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		b, err := gitx.ReadFile(r.Context(), s.repoPath(repo), ref, r.URL.Query().Get("path"))
 		if err != nil {
-			return err
+			return gitErr(err)
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write(b)
@@ -285,7 +328,10 @@ func (s *Server) Handler() http.Handler {
 			ref = "refs/heads/" + repo.DefaultBranch
 		}
 		entries, err := gitx.Log(r.Context(), s.repoPath(repo), ref, 50)
-		return respond(w, err, entries)
+		if entries == nil && err == nil {
+			entries = []gitx.LogEntry{}
+		}
+		return respond(w, gitErr(err), entries)
 	})
 	// server-side commit through the API: no clone, no working copy (ADR 0014)
 	api("POST /api/v0/repos/{org}/{name}/commits", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
@@ -314,12 +360,6 @@ func (s *Server) Handler() http.Handler {
 		}
 		rp := s.repoPath(repo)
 		ref := "refs/heads/" + in.Branch
-		parent, err := gitx.RevParse(r.Context(), rp, ref)
-		old := parent
-		if err != nil { // new branch: start from the default branch if it exists
-			old = gitx.ZeroOID
-			parent, _ = gitx.RevParse(r.Context(), rp, "refs/heads/"+repo.DefaultBranch)
-		}
 		edits := make([]gitx.FileEdit, 0, len(in.Files))
 		for _, f := range in.Files {
 			if f.Path == "" || strings.Contains(f.Path, "..") {
@@ -332,12 +372,31 @@ func (s *Server) Handler() http.Handler {
 			edits = append(edits, e)
 		}
 		author := gitx.Author{Name: a.ID, Email: a.ID + "@" + repo.Org + ".invalid"}
-		oid, err := gitx.CommitFiles(r.Context(), rp, parent, edits, in.Message+"\n", author)
-		if err != nil {
-			return err
+		// Commits are lock-free: build on the current tip and publish with
+		// compare-and-swap; if the tip moved underneath, rebuild on the new tip.
+		var oid, old string
+		var lastErr error
+		for attempt := 0; attempt < 8; attempt++ {
+			parent, err := gitx.RevParse(r.Context(), rp, ref)
+			old = parent
+			if err != nil { // new branch: start from the default branch if it exists
+				old = gitx.ZeroOID
+				parent, _ = gitx.RevParse(r.Context(), rp, "refs/heads/"+repo.DefaultBranch)
+			}
+			oid, err = gitx.CommitFiles(r.Context(), rp, parent, edits, in.Message+"\n", author)
+			if err != nil {
+				return err
+			}
+			if err := gitx.UpdateRef(r.Context(), rp, ref, oid, old); err != nil {
+				lastErr = err
+				time.Sleep(time.Duration(10*(attempt+1)) * time.Millisecond)
+				continue
+			}
+			lastErr = nil
+			break
 		}
-		if err := gitx.UpdateRef(r.Context(), rp, ref, oid, old); err != nil {
-			return err
+		if lastErr != nil {
+			return fmt.Errorf("%w: branch %s kept moving: %v", errConflict, in.Branch, lastErr)
 		}
 		if err := s.DB.RecordRefUpdate(r.Context(), repo, ref, old, oid, "api", a); err != nil {
 			return err
@@ -699,6 +758,26 @@ func (s *Server) repoPath(repo ledger.Repo) string {
 
 var errBadRequest = errors.New("bad request")
 
+// errConflict is answered with 409.
+var errConflict = errors.New("conflict")
+
+// gitErr maps git's "unknown revision" and "not a valid object name" failures
+// (a ref or object that does not exist) to ErrNotFound so the API answers 404
+// instead of 500 for an empty repository or a bad ref.
+func gitErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "unknown revision") || strings.Contains(msg, "Not a valid object name") ||
+		strings.Contains(msg, "not a valid object name") || strings.Contains(msg, "bad revision") ||
+		strings.Contains(msg, "does not exist in") || strings.Contains(msg, "Not a valid commit name") ||
+		strings.Contains(msg, "exists on disk, but not in") {
+		return fmt.Errorf("%w: %s", ledger.ErrNotFound, strings.TrimSpace(strings.SplitN(msg, ":", 2)[len(strings.SplitN(msg, ":", 2))-1]))
+	}
+	return err
+}
+
 func isConflict(err error) bool {
 	var ce *review.ConflictError
 	return errors.As(err, &ce)
@@ -718,11 +797,15 @@ func validName(s string) bool {
 
 func atoi(s string) int { n, _ := strconv.Atoi(s); return n }
 
+// maxJSONBody bounds API request bodies; the commits endpoint carries file
+// contents, so the limit is generous but finite.
+const maxJSONBody = 64 << 20
+
 func decode(r *http.Request, v any) error {
 	if r.Body == nil {
 		return errors.New("empty body")
 	}
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, maxJSONBody))
 	dec.DisallowUnknownFields()
 	return dec.Decode(v)
 }

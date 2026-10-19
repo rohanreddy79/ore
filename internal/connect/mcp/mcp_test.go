@@ -378,7 +378,7 @@ func TestMCPEndToEnd(t *testing.T) {
 	if rs := runs["runs"].([]any); len(rs) != 1 || rs[0].(map[string]any)["id"] != run.ID {
 		t.Fatalf("pipelines_runs %+v", runs)
 	}
-	lg, text, _ := h.tool(h.token, "pipelines_run_log", map[string]any{"run": run.ID, "start": 2, "count": 1})
+	lg, text, _ := h.tool(h.token, "pipelines_run_log", map[string]any{"run": run.ID, "start": 3, "count": 1})
 	if lg["count"].(float64) != 1 || lg["total_lines"].(float64) < 3 || !strings.Contains(text, "line2") || lg["truncated"] != true {
 		t.Fatalf("run_log %+v %q", lg, text)
 	}

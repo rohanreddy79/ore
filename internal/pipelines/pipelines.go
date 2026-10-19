@@ -28,6 +28,11 @@ import (
 type Spec struct {
 	Version int    `yaml:"version" json:"version"`
 	Tasks   []Task `yaml:"tasks" json:"tasks"`
+	// Paths, when set, limits what is materialized into the workspace to these
+	// paths (git pathspecs): a sparse checkout for large repositories whose
+	// pipelines only need part of the tree. The pipeline file itself is always
+	// included.
+	Paths []string `yaml:"paths,omitempty" json:"paths,omitempty"`
 }
 
 // Task is one verification step.
@@ -151,11 +156,29 @@ func (rn *Runner) execute(ctx context.Context, repo ledger.Repo, commitOID strin
 		logw.line("ore", "workspace: "+err.Error())
 		return "error", nil
 	}
-	defer os.RemoveAll(work)
+	// Removing a large workspace takes seconds; it must not sit between the
+	// last task and the run's completion.
+	defer func() { go os.RemoveAll(work) }()
 	repoPath := filepath.Join(rn.ReposDir, repo.Org, repo.Name+".git")
-	if err := gitx.Archive(ctx, repoPath, commitOID, work); err != nil {
+	// Sparse materialization: read the pipeline file straight from git first
+	// and honor its paths, so a huge repository is never checked out in full
+	// for a path-scoped pipeline.
+	var sparse []string
+	if raw, err := gitx.ReadFile(ctx, repoPath, commitOID, SpecPath); err == nil {
+		var pre Spec
+		if yaml.Unmarshal(raw, &pre) == nil && len(pre.Paths) > 0 {
+			sparse = append([]string{SpecPath}, pre.Paths...)
+		}
+	}
+	t0 := time.Now()
+	if err := gitx.ArchivePaths(ctx, repoPath, commitOID, work, sparse); err != nil {
 		logw.line("ore", "materialize "+commitOID+": "+err.Error())
 		return "error", nil
+	}
+	if len(sparse) > 0 {
+		logw.line("ore", fmt.Sprintf("materialized %d path(s) in %d ms (sparse)", len(sparse)-1, time.Since(t0).Milliseconds()))
+	} else {
+		logw.line("ore", fmt.Sprintf("materialized the tree in %d ms", time.Since(t0).Milliseconds()))
 	}
 	// Authoring front-ends (GitHub Actions workflows) apply when the tree has
 	// no native pipeline file; see runir.go.

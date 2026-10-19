@@ -121,3 +121,39 @@ func TestLoopBlocksAtLevel2AndFailsOnRedPipeline(t *testing.T) {
 		t.Fatalf("expected no-changes failure, got %s %q", run.Status, run.Error)
 	}
 }
+
+func TestLoopUsesSparseCheckoutWhenPathsDeclared(t *testing.T) {
+	ctx := context.Background()
+	_, repo, loop, rp := setup(t, 3)
+	// declare an active area; the agent must only see svc/a plus the pipeline dir
+	c0, _ := gitx.RevParse(ctx, rp, "refs/heads/main")
+	c1, err := gitx.CommitFiles(ctx, rp, c0, []gitx.FileEdit{
+		{Path: ".ore/pipeline.yaml", Content: []byte("version: 0\npaths: [svc/a]\ntasks:\n  - id: test\n    run: grep -q 'Hello, Ore!' svc/a/greeting.txt\n")},
+		{Path: "svc/a/greeting.txt", Content: []byte("Hello, World!\n")},
+		{Path: "svc/b/other.txt", Content: []byte("b\n")},
+		{Path: "greeting.txt", Content: nil},
+	}, "monorepo layout", gitx.Author{Name: "t", Email: "t@t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gitx.UpdateRef(ctx, rp, "refs/heads/main", c1, c0); err != nil {
+		t.Fatal(err)
+	}
+	loop.AdapterCmd = `test ! -e svc/b && test ! -e greeting.txt && sed -i.bak 's/World/Ore/' svc/a/greeting.txt && rm svc/a/greeting.txt.bak`
+	run, err := loop.RunSync(ctx, repo, Request{Prompt: "fix greeting in svc/a"}, ledger.System)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log, _ := os.ReadFile(run.LogPath)
+	if run.Status != "completed" || !strings.Contains(string(log), "sparse checkout of 2 path(s)") {
+		t.Fatalf("status %s error %q\n%s", run.Status, run.Error, log)
+	}
+	content, _ := gitx.ReadFile(ctx, rp, "refs/heads/main", "svc/a/greeting.txt")
+	if string(content) != "Hello, Ore!\n" {
+		t.Fatalf("not landed: %q", content)
+	}
+	other, _ := gitx.ReadFile(ctx, rp, "refs/heads/main", "svc/b/other.txt")
+	if string(other) != "b\n" {
+		t.Fatalf("sparse checkout must not drop untouched paths: %q", other)
+	}
+}

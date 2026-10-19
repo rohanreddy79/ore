@@ -299,22 +299,30 @@ func init() {
 		}})
 
 	register(&Tool{Name: "repos_tree", Title: "List files", ReadOnly: true,
-		Description: "The paths in a repository at a ref (default: the default branch).",
-		InputSchema: schema(nil, map[string]any{"repo": repoProp, "ref": strProp("Branch, tag or commit (default: the default branch)")}),
+		Description: "Paths in a repository at a ref (default: the default branch). Pass path to scope to a directory and depth=1 for its direct children (directories end with /); recursive listings are capped at 5000 entries with truncated=true.",
+		InputSchema: schema(nil, map[string]any{"repo": repoProp, "ref": strProp("Branch, tag or commit (default: the default branch)"), "path": strProp("Directory to list (default: the root)"), "depth": strProp("\"1\" for direct children only")}),
 		Handler: func(ctx context.Context, c *Call) (*Result, error) {
 			repo, err := c.repo(ctx)
 			if err != nil {
 				return nil, err
 			}
 			ref := c.ref(repo)
-			files, err := gitx.ListTree(ctx, c.repoPath(repo), ref)
+			sub, _ := c.Args["path"].(string)
+			depth, _ := c.Args["depth"].(string)
+			files, err := gitx.ListTreeAt(ctx, c.repoPath(repo), ref, sub, depth != "1")
 			if err != nil {
 				return nil, toolErr("tree %s: %v", ref, err)
 			}
 			if files == nil {
 				files = []string{}
 			}
-			return structured(map[string]any{"repo": repo.Org + "/" + repo.Name, "ref": ref, "paths": files})
+			const cap = 5000
+			truncated := false
+			total := len(files)
+			if len(files) > cap {
+				files, truncated = files[:cap], true
+			}
+			return structured(map[string]any{"repo": repo.Org + "/" + repo.Name, "ref": ref, "path": sub, "paths": files, "total": total, "truncated": truncated})
 		}})
 
 	register(&Tool{Name: "repos_file", Title: "Read file", ReadOnly: true,

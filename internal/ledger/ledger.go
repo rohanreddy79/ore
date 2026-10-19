@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -96,12 +97,24 @@ func SQLitePath(target string) string {
 }
 
 func openSQLite(ctx context.Context, path string, opt Options) (*DB, error) {
-	dsn := path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_txlock=immediate"
+	// WAL lets many readers run concurrently with one writer; BEGIN IMMEDIATE
+	// (_txlock=immediate) takes the write lock up front so writers queue on
+	// the busy handler instead of deadlocking on lock upgrades. The pool is
+	// sized for concurrent reads; writers serialize inside SQLite itself.
+	dsn := path + "?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_txlock=immediate"
 	s, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	s.SetMaxOpenConns(1) // SQLite: serialize writers; readers share the single connection in v0.
+	conns := runtime.NumCPU() * 2
+	if conns < 4 {
+		conns = 4
+	}
+	if conns > 32 {
+		conns = 32
+	}
+	s.SetMaxOpenConns(conns)
+	s.SetMaxIdleConns(conns)
 	db := &DB{sql: s, dialect: DialectSQLite, target: path}
 	// the first connection switches the journal to WAL, which needs the write
 	// lock: wait for a concurrent opener (another ore process) to finish

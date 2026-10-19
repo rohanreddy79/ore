@@ -1,0 +1,21 @@
+server pid=63141 url=http://127.0.0.1:57969 data=/var/folders/zj/8v33jq3j0jj8qql4zs_b1xp40000gn/T/tmp.qcrStVvMhe executor=host db=sqlite
+== bin/orebench push --url $ORE_URL --token $ORE_TOKEN --dir /private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/repo1m --repos 5 --concurrency 5
+   (0s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0000 --concurrency 100 --duration 20s
+   (20s)
+== bin/orebench commits --url $ORE_URL --token $ORE_TOKEN --repo bench/r0001 --concurrency 20 --count 200
+   (3s)
+== bin/orebench pipelines --url $ORE_URL --token $ORE_TOKEN --repo bench/r0002 --concurrency 5 --count 10
+   (0s)
+== bin/orebench agents --url $ORE_URL --token $ORE_TOKEN --repo bench/r0003 --concurrency 5 --count 10
+   (1s)
+   1 time=2026-10-19T03:50:20.123-04:00 level=ERROR msg=request request_id=req_000038AK4FAZ58AQ37A2 method=POST path=/api/v0/repos/bench/r0001/commits status=500 bytes=386 duration_ms=232 remote=127.0.0.1
+   1 time=2026-10-19T03:50:19.217-04:00 level=ERROR msg=request request_id=req_000038AK4F97KN44VY0H method=POST path=/api/v0/repos/bench/r0001/commits status=500 bytes=386 duration_ms=216 remote=127.0.0.1
+   1 time=2026-10-19T03:50:19.211-04:00 level=ERROR msg=request request_id=req_000038AK4F97HGE89R36 method=POST path=/api/v0/repos/bench/r0001/commits status=500 bytes=386 duration_ms=211 remote=127.0.0.1
+   1 time=2026-10-19T03:50:19.202-04:00 level=ERROR msg=request request_id=req_000038AK4F94RCV6322Q method=POST path=/api/v0/repos/bench/r0001/commits status=500 bytes=386 duration_ms=245 remote=127.0.0.1
+   1 time=2026-10-19T03:50:18.651-04:00 level=ERROR msg=request request_id=req_000038AK4F834D8GVQF9 method=POST path=/api/v0/repos/bench/r0001/commits status=500 bytes=386 duration_ms=232 remote=127.0.0.1
+   1 time=2026-10-19T03:50:17.955-04:00 level=ERROR msg=request request_id=req_000038AK4F72Q3VKDETE method=GET path=/api/v0/repos/bench/r0000/log status=500 bytes=98 duration_ms=55 remote=127.0.0.1
+   1 time=2026-10-19T03:50:17.955-04:00 level=ERROR msg=request request_id=req_000038AK4F72NNRZBSKC method=GET path=/api/v0/repos/bench/r0000/log status=500 bytes=98 duration_ms=56 remote=127.0.0.1
+   1 time=2026-10-19T03:50:17.955-04:00 level=ERROR msg=request request_id=req_000038AK4F72FJW7Z67R method=GET path=/api/v0/repos/bench/r0000/tree status=500 bytes=73 duration_ms=59 remote=127.0.0.1
+   1 time=2026-10-19T03:50:17.955-04:00 level=ERROR msg=request request_id=req_000038AK4F6ZW9A7XN2K method=GET path=/api/v0/repos/bench/r0000/log status=500 bytes=98 duration_ms=100 remote=127.0.0.1
+   1 time=2026-10-19T03:50:17.955-04:00 level=ERROR msg=request request_id=req_000038AK4F6ZTHC5PJ6N method=GET path=/api/v0/repos/bench/r0000/log status=500 bytes=98 duration_ms=101 remote=127.0.0.1

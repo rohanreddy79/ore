@@ -1,0 +1,10 @@
+{"bytes":0,"concurrency":1,"elapsed_s":9.37,"error_kinds":{},"errors":0,"max_ms":9263.7,"ok":1,"p50_ms":9263.7,"p95_ms":9263.7,"p99_ms":9263.7,"repos":1,"rps":0.1,"scenario":"push"}
+{"bytes":454889387,"concurrency":20,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":867.86,"ok":2526,"p50_ms":20.81,"p95_ms":631.49,"p99_ms":709.33,"requests":2546,"rps":126.28,"scenario":"api"}
+{"bytes":440994960,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":867.86,"ok":630,"p50_ms":565.08,"p95_ms":701.52,"p99_ms":771.52,"rps":31.49,"scenario":"api.tree"}
+{"bytes":43248,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":63.57,"ok":636,"p50_ms":15.51,"p95_ms":38.48,"p99_ms":52.41,"rps":31.79,"scenario":"api.refs"}
+{"bytes":13306984,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":89.56,"ok":625,"p50_ms":16.61,"p95_ms":42.62,"p99_ms":53.18,"rps":31.24,"scenario":"api.file"}
+{"bytes":544195,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":74.39,"ok":635,"p50_ms":17.48,"p95_ms":47.05,"p99_ms":62.56,"rps":31.74,"scenario":"api.log"}
+{"bytes":1860,"concurrency":5,"count":20,"elapsed_s":3.28,"error_kinds":{},"errors":0,"max_ms":1103.01,"ok":20,"p50_ms":566.29,"p95_ms":1092.41,"p99_ms":1092.41,"rps":6.08,"scenario":"commits"}
+{"bytes":0,"concurrency":2,"count":4,"elapsed_s":2.52,"error_kinds":{},"errors":0,"max_ms":1516.36,"ok":4,"p50_ms":1012.29,"p95_ms":1516.33,"p99_ms":1516.33,"rps":1.58,"scenario":"pipelines","statuses":{"succeeded":4}}
+{"bytes":0,"concurrency":2,"count":4,"elapsed_s":2.51,"error_kinds":{"failed: git add -A: exit status 1: The following paths and/or pathspecs matche":4},"errors":4,"max_ms":0,"ok":0,"p50_ms":0,"p95_ms":0,"p99_ms":0,"rps":0,"scenario":"agents","statuses":{"failed":4}}
+{"scenario":"server","peak_rss_mb":238,"peak_fds":113,"errors_in_log":0,"panics":0}

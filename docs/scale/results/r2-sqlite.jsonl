@@ -1,0 +1,1 @@
+{"bytes":0,"concurrency":10,"elapsed_s":1.56,"error_kinds":{},"errors":0,"max_ms":1502.16,"ok":10,"p50_ms":1479.17,"p95_ms":1496.75,"p99_ms":1496.75,"repos":10,"rps":6.37,"scenario":"push"}

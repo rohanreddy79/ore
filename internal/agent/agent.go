@@ -158,9 +158,33 @@ func (l *Loop) execute(ctx context.Context, repo ledger.Repo, req Request, run *
 		return
 	}
 	defer os.RemoveAll(work)
-	if _, err := gitx.Run(ctx, "", nil, "clone", "--quiet", "--branch", repo.DefaultBranch, rp, work); err != nil {
+	// --shared: the workspace borrows the bare repository's objects instead of
+	// copying them (a 1 GB pack is not duplicated per agent run); --single-branch
+	// keeps the ref set small. When the repository's pipeline declares `paths`,
+	// the checkout is sparse (cone mode) so a 100k-file monorepo materializes
+	// only its active area; otherwise the whole tree is checked out.
+	t0 := time.Now()
+	sparse := l.sparsePaths(ctx, rp, "refs/heads/"+repo.DefaultBranch)
+	cloneArgs := []string{"clone", "--quiet", "--shared", "--single-branch", "--branch", repo.DefaultBranch}
+	if len(sparse) > 0 {
+		cloneArgs = append(cloneArgs, "--no-checkout")
+	}
+	if _, err := gitx.Run(ctx, "", nil, append(cloneArgs, rp, work)...); err != nil {
 		l.finish(ctx, repo, run, "failed", "clone: "+err.Error(), lg, actor)
 		return
+	}
+	if len(sparse) > 0 {
+		if _, err := gitx.Run(ctx, work, nil, append([]string{"sparse-checkout", "set", "--cone"}, sparse...)...); err != nil {
+			l.finish(ctx, repo, run, "failed", "sparse-checkout: "+err.Error(), lg, actor)
+			return
+		}
+		if _, err := gitx.Run(ctx, work, nil, "checkout", "--quiet", repo.DefaultBranch); err != nil {
+			l.finish(ctx, repo, run, "failed", "checkout: "+err.Error(), lg, actor)
+			return
+		}
+		lg.printf("[change] workspace: sparse checkout of %d path(s) in %d ms", len(sparse), time.Since(t0).Milliseconds())
+	} else {
+		lg.printf("[change] workspace: full checkout in %d ms", time.Since(t0).Milliseconds())
 	}
 	short := run.ID[len(run.ID)-6:]
 	branch := "ore/agent/" + short
@@ -307,17 +331,31 @@ func (l *Loop) execute(ctx context.Context, repo ledger.Repo, req Request, run *
 	l.finish(ctx, repo, run, "completed", "", lg, actor)
 }
 
-func (l *Loop) hasDockerfile(ctx context.Context, rp, rev string) bool {
-	files, err := gitx.ListTree(ctx, rp, rev)
+// sparsePaths returns the pipeline file's `paths` (the repository's declared
+// active area) plus the pipeline file's own directory, or nil for a full checkout.
+func (l *Loop) sparsePaths(ctx context.Context, rp, rev string) []string {
+	raw, err := gitx.ReadFile(ctx, rp, rev, pipelines.SpecPath)
 	if err != nil {
-		return false
+		return nil
 	}
-	for _, f := range files {
-		if f == "Dockerfile" {
-			return true
+	var spec pipelines.Spec
+	if yaml.Unmarshal(raw, &spec) != nil || len(spec.Paths) == 0 {
+		return nil
+	}
+	out := []string{filepath.Dir(pipelines.SpecPath)}
+	for _, p := range spec.Paths {
+		p = strings.Trim(p, "/")
+		if p != "" {
+			out = append(out, p)
 		}
 	}
-	return false
+	return out
+}
+
+func (l *Loop) hasDockerfile(ctx context.Context, rp, rev string) bool {
+	// One object lookup instead of listing the whole tree.
+	_, err := gitx.Run(ctx, rp, nil, "cat-file", "-e", rev+":Dockerfile")
+	return err == nil
 }
 
 func (l *Loop) compose(ctx context.Context, rp string, repo ledger.Repo, req Request) (prompt, verifyCmd string) {
@@ -329,9 +367,11 @@ func (l *Loop) compose(ctx context.Context, rp string, repo ledger.Repo, req Req
 	if req.Prompt != "" {
 		b.WriteString(strings.TrimSpace(req.Prompt) + "\n\n")
 	}
-	files, _ := gitx.ListTree(ctx, rp, "refs/heads/"+repo.DefaultBranch)
+	// Top-level entries only: a 100k-file repository must not be listed into
+	// a prompt. Agents browse deeper through the API and MCP tools.
+	files, _ := gitx.ListTreeAt(ctx, rp, "refs/heads/"+repo.DefaultBranch, "", false)
 	if len(files) > 0 {
-		b.WriteString("Files: " + strings.Join(limit(files, 60), ", ") + "\n")
+		b.WriteString("Top-level entries: " + strings.Join(limit(files, 60), ", ") + "\n")
 	}
 	if raw, err := gitx.ReadFile(ctx, rp, "refs/heads/"+repo.DefaultBranch, pipelines.SpecPath); err == nil {
 		var s pipelines.Spec
