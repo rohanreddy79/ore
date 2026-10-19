@@ -44,6 +44,11 @@ type Loop struct {
 	// AdapterName labels provenance (e.g. "claude-code", "demo-script").
 	AdapterName string
 	Timeout     time.Duration
+
+	// Governor, when set, governs the loop: admission and per-step gates
+	// (budgets, the kill switch), per-repository roles, and the adversarial
+	// reviewer before landing. nil is the ungoverned loop. See governor.go.
+	Governor Governor
 }
 
 // Request describes a loop pass.
@@ -76,6 +81,14 @@ func (l *Loop) begin(ctx context.Context, repo ledger.Repo, req Request, actor l
 	name := l.AdapterName
 	if name == "" {
 		name = "claude-code"
+	}
+	if spec, ok := l.roleSpec(ctx, repo, "implementer"); ok && spec.AdapterName != "" {
+		name = spec.AdapterName
+	}
+	if l.Governor != nil {
+		if err := l.Governor.Admit(ctx, repo, ledger.Actor{Kind: "agent", ID: name}); err != nil {
+			return ledger.AgentRun{Adapter: name}, fmt.Errorf("%w: %w", ErrRefused, err)
+		}
 	}
 	run := ledger.AgentRun{Adapter: name}
 	if req.Issue != nil {
@@ -128,11 +141,17 @@ func (l *Loop) execute(ctx context.Context, repo ledger.Repo, req Request, run *
 
 	// 1. plan: gather context for the adapter
 	l.step(ctx, repo, run, "plan", lg, actor)
+	if !l.gate(ctx, repo, run, agentActor, "plan", lg, actor) {
+		return
+	}
 	prompt, verifyCmd := l.compose(ctx, rp, repo, req)
 	lg.printf("[plan] prompt:\n%s", indent(prompt))
 
 	// 2. change: workspace, adapter, commit, push
 	l.step(ctx, repo, run, "change", lg, actor)
+	if !l.gate(ctx, repo, run, agentActor, "change", lg, actor) {
+		return
+	}
 	work, err := os.MkdirTemp("", "ore-agent-*")
 	if err != nil {
 		l.finish(ctx, repo, run, "failed", err.Error(), lg, actor)
@@ -197,6 +216,9 @@ func (l *Loop) execute(ctx context.Context, repo ledger.Repo, req Request, run *
 
 	// 3. verify: open the change, run the pipeline, deploy a preview
 	l.step(ctx, repo, run, "verify", lg, actor)
+	if !l.gate(ctx, repo, run, agentActor, "verify", lg, actor) {
+		return
+	}
 	ch, err := l.Review.Open(ctx, repo, review.OpenRequest{SourceRef: branch, Title: title, Body: msg, Provenance: string(provJSON)}, agentActor)
 	if err != nil {
 		l.finish(ctx, repo, run, "failed", "open change: "+err.Error(), lg, actor)
@@ -231,20 +253,43 @@ func (l *Loop) execute(ctx context.Context, repo ledger.Repo, req Request, run *
 		l.finish(ctx, repo, run, "blocked", fmt.Sprintf("autonomy level %d: a human must land change #%d", repo.AutonomyLevel, ch.Number), lg, actor)
 		return
 	}
+	// 3b. adversarial review (L3+, when the repository has a reviewer role)
+	if l.Governor != nil {
+		l.step(ctx, repo, run, "review", lg, actor)
+		if !l.gate(ctx, repo, run, agentActor, "review", lg, actor) {
+			return
+		}
+		var ok bool
+		if ch, prun, ok = l.adversarialReview(ctx, repo, run, ch, prun, work, rp, branch, prompt, verifyCmd, req, lg, actor, agentActor); !ok {
+			return
+		}
+		run.ChangeID = &ch.ID
+	}
 	l.step(ctx, repo, run, "land", lg, actor)
-	mergeOID, err := l.Review.Merge(ctx, repo, ch, agentActor)
-	if err != nil {
-		l.finish(ctx, repo, run, "failed", "land: "+err.Error(), lg, actor)
+	if !l.gate(ctx, repo, run, agentActor, "land", lg, actor) {
 		return
 	}
-	lg.printf("[land] merged into %s as %s", ch.TargetRef, mergeOID[:8])
+	landing, err := l.land(ctx, repo, ch, &prun, agentActor)
+	if err != nil {
+		status, msg := landOutcome(err)
+		l.finish(ctx, repo, run, status, msg, lg, actor)
+		return
+	}
+	mergeOID := *landing.MergeOID
+	lg.printf("[land] merged into %s as %s (strategy %s, landing %s)", ch.TargetRef, mergeOID[:8], landing.Strategy, landing.ID)
 
 	// 5. deploy to production at L4+
 	if repo.AutonomyLevel >= 4 && l.hasDockerfile(ctx, rp, mergeOID) {
 		l.step(ctx, repo, run, "deploy", lg, actor)
+		if !l.gate(ctx, repo, run, agentActor, "deploy", lg, actor) {
+			return
+		}
 		dep, err := l.Deployer.Deploy(ctx, repo, mergeOID, "production", agentActor, nil)
-		if err != nil {
-			l.finish(ctx, repo, run, "failed", "deploy: "+err.Error(), lg, actor)
+		if status, msg, done := deployOutcome(dep, err); done {
+			if dep.ID != "" {
+				run.DeploymentID = &dep.ID
+			}
+			l.finish(ctx, repo, run, status, msg, lg, actor)
 			return
 		}
 		run.DeploymentID = &dep.ID
@@ -253,6 +298,9 @@ func (l *Loop) execute(ctx context.Context, repo ledger.Repo, req Request, run *
 
 	// 6. observe: close the signal with evidence
 	l.step(ctx, repo, run, "observe", lg, actor)
+	if !l.gate(ctx, repo, run, agentActor, "observe", lg, actor) {
+		return
+	}
 	if req.Issue != nil {
 		_ = l.DB.CloseIssue(ctx, repo, *req.Issue, fmt.Sprintf("landed by change #%d (%s) in agent run %s", ch.Number, mergeOID[:8], run.ID), agentActor)
 	}
@@ -302,11 +350,17 @@ func (l *Loop) compose(ctx context.Context, rp string, repo ledger.Repo, req Req
 		b.WriteString("Verify with: " + verifyCmd + "\n")
 	}
 	b.WriteString("Make the smallest correct change. Do not commit, push, or create branches: Ore commits for you with provenance, opens the change, verifies it in a container, and lands it under the repository's policy.\n")
+	if spec, ok := l.roleSpec(ctx, repo, "implementer"); ok && strings.TrimSpace(spec.PromptProfile) != "" {
+		b.WriteString("\n" + strings.TrimSpace(spec.PromptProfile) + "\n")
+	}
 	return b.String(), verifyCmd
 }
 
-func (l *Loop) runAdapter(ctx context.Context, work, prompt, verifyCmd string, repo ledger.Repo, branch string, req Request, lg *stepLog) error {
+func (l *Loop) runAdapter(ctx context.Context, work, prompt, verifyCmd string, repo ledger.Repo, branch string, req Request, lg *stepLog, extraEnv ...string) error {
 	cmdline := l.AdapterCmd
+	if spec, ok := l.roleSpec(ctx, repo, "implementer"); ok && spec.AdapterCmd != "" {
+		cmdline = spec.AdapterCmd
+	}
 	if cmdline == "" {
 		cmdline = DefaultAdapter
 	}
@@ -324,6 +378,7 @@ func (l *Loop) runAdapter(ctx context.Context, work, prompt, verifyCmd string, r
 	if req.Issue != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("ORE_ISSUE_NUMBER=%d", req.Issue.Number), "ORE_ISSUE_TITLE="+req.Issue.Title, "ORE_ISSUE_BODY="+req.Issue.Body)
 	}
+	cmd.Env = append(cmd.Env, extraEnv...)
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	lg.printf("[change] adapter: %s", cmdline)

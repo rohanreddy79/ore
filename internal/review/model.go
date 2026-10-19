@@ -318,4 +318,9 @@ type Landing struct {
 // LandRequest picks a strategy; empty means the repository's default.
 type LandRequest struct {
 	Strategy string `json:"strategy"`
+	// VerificationRunID names a succeeded pipeline run on the change's current
+	// head that land_when_green may reuse instead of verifying the head again
+	// (the agent loop verifies before it reviews and lands). Ignored unless the
+	// run exists, succeeded and ran on exactly the head being landed.
+	VerificationRunID string `json:"verification_run_id,omitempty"`
 }

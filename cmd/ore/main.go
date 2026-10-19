@@ -28,6 +28,7 @@ import (
 	"github.com/orevcs/ore/internal/web"
 
 	// Feature slices wire themselves in through internal/registry.
+	_ "github.com/orevcs/ore/internal/agent/fleet"
 	_ "github.com/orevcs/ore/internal/connect/gateway"
 	_ "github.com/orevcs/ore/internal/connect/mcp"
 	_ "github.com/orevcs/ore/internal/delivery/environments"
