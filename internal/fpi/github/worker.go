@@ -148,6 +148,7 @@ func (svc *Service) Run(ctx context.Context) {
 			if _, err := svc.SyncAll(ctx); err != nil {
 				svc.log().Error("github: sync all", "err", err)
 			}
+			svc.ResumeDeferredImports(ctx)
 		case <-statusC:
 			if _, err := svc.PostStatuses(ctx); err != nil {
 				svc.log().Warn("github: post statuses", "err", err)

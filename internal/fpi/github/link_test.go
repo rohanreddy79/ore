@@ -144,7 +144,11 @@ func TestGitHubProviderReads(t *testing.T) {
 		t.Fatalf("refs: %+v %v", refs, err)
 	}
 	issues, err := p.ListIssues(ctx, repo, fpi.IssueQuery{State: "all"})
-	if err != nil || len(issues) != 2 || issues[0].Number != 1 || issues[1].Author != "hubot" {
+	byNumber := map[int]fpi.Issue{}
+	for _, i := range issues {
+		byNumber[i.Number] = i
+	}
+	if err != nil || len(issues) != 2 || byNumber[1].Author != "octocat" || byNumber[3].Author != "hubot" {
 		t.Fatalf("issues: %+v %v", issues, err)
 	}
 	if err := p.ReportStatus(ctx, repo, up.tip(t, "refs/heads/main"), fpi.Status{State: fpi.StatusSuccess, Context: "ore/manual"}); err != nil || len(gh.statusCalls()) != 1 {
