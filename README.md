@@ -1,7 +1,5 @@
 # Ore
 
-> **Name: Ore.** Raw material, refined into tools. Three letters, one syllable, pronounceable in every launch language. Trademark search pending; see `docs/08-business-and-licensing.md` §1.
-
 **Run your own GitHub, CI, deploy platform and agent fleet with one binary, and let the agents fix, verify and ship your software end to end while you set the policy.**
 
 Ore is an open-source platform for the whole software loop — signal, plan, change, verify, land, deploy, observe, fix — run by agents under policy a human wrote once, on a source-control service designed for agents and compatible with every git tool. One binary hosts repositories, runs pipelines, deploys software, governs agents and teaches people. Self-host-first, AGPL-licensed with a non-profit trademark successor, light enough for a two-person team, usable on top of GitHub before anyone migrates.
