@@ -43,6 +43,7 @@ import (
 	_ "github.com/orevcs/ore/internal/identity"
 	_ "github.com/orevcs/ore/internal/learn"
 	_ "github.com/orevcs/ore/internal/pipelines/actions"
+	_ "github.com/orevcs/ore/internal/review/v1"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
