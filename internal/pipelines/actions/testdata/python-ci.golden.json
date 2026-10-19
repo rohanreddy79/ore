@@ -1,0 +1,318 @@
+{
+  "version": "0",
+  "id": ".github/workflows/python-ci.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated') || (event.type == 'io.ore.change.patchset.pushed')"
+    },
+    "events": [
+      {
+        "name": "push"
+      },
+      {
+        "name": "pull_request"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "python-ci/build/python-version=3.10",
+      "name": "build (3.10)",
+      "matrix_key": {
+        "python-version": "3.10"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-python@v5",
+            "repository": "actions/setup-python",
+            "sha": "0b93645e9fea7318ecaed2b359559ac225c90a2b",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "build",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "python-ci",
+          "workflow_name": "Python package"
+        },
+        "caches": [
+          {
+            "key": "setup-python-${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}",
+            "restore_keys": [
+              "setup-python-${{ runner.os }}-pip-"
+            ],
+            "paths": [
+              "~/.cache/pip"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Set up Python 3.10",
+          "uses": "actions/setup-python@v5",
+          "with": {
+            "cache": "pip",
+            "python-version": "3.10"
+          }
+        },
+        {
+          "name": "Install dependencies",
+          "run": "python -m pip install --upgrade pip\npip install ruff pytest\nif [ -f requirements.txt ]; then pip install -r requirements.txt; fi\n"
+        },
+        {
+          "name": "Lint with ruff",
+          "run": "ruff check ."
+        },
+        {
+          "name": "Test with pytest",
+          "run": "pytest -q"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:f640b28f920e3ca7c2da4ad52f73b7de8d2d9e7c872c7688b9070ecf032f55f4"
+    },
+    {
+      "id": "python-ci/build/python-version=3.11",
+      "name": "build (3.11)",
+      "matrix_key": {
+        "python-version": "3.11"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-python@v5",
+            "repository": "actions/setup-python",
+            "sha": "0b93645e9fea7318ecaed2b359559ac225c90a2b",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "build",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 1,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "python-ci",
+          "workflow_name": "Python package"
+        },
+        "caches": [
+          {
+            "key": "setup-python-${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}",
+            "restore_keys": [
+              "setup-python-${{ runner.os }}-pip-"
+            ],
+            "paths": [
+              "~/.cache/pip"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Set up Python 3.11",
+          "uses": "actions/setup-python@v5",
+          "with": {
+            "cache": "pip",
+            "python-version": "3.11"
+          }
+        },
+        {
+          "name": "Install dependencies",
+          "run": "python -m pip install --upgrade pip\npip install ruff pytest\nif [ -f requirements.txt ]; then pip install -r requirements.txt; fi\n"
+        },
+        {
+          "name": "Lint with ruff",
+          "run": "ruff check ."
+        },
+        {
+          "name": "Test with pytest",
+          "run": "pytest -q"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:535b4f519c022fc98373959ef055d39f8fb88b06f1e3e70f9489e799d5b711a1"
+    },
+    {
+      "id": "python-ci/build/python-version=3.12",
+      "name": "build (3.12)",
+      "matrix_key": {
+        "python-version": "3.12"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-python@v5",
+            "repository": "actions/setup-python",
+            "sha": "0b93645e9fea7318ecaed2b359559ac225c90a2b",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "build",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 2,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "python-ci",
+          "workflow_name": "Python package"
+        },
+        "caches": [
+          {
+            "key": "setup-python-${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}",
+            "restore_keys": [
+              "setup-python-${{ runner.os }}-pip-"
+            ],
+            "paths": [
+              "~/.cache/pip"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Set up Python 3.12",
+          "uses": "actions/setup-python@v5",
+          "with": {
+            "cache": "pip",
+            "python-version": "3.12"
+          }
+        },
+        {
+          "name": "Install dependencies",
+          "run": "python -m pip install --upgrade pip\npip install ruff pytest\nif [ -f requirements.txt ]; then pip install -r requirements.txt; fi\n"
+        },
+        {
+          "name": "Lint with ruff",
+          "run": "ruff check ."
+        },
+        {
+          "name": "Test with pytest",
+          "run": "pytest -q"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:e7a14715ed95c7d793bb7b02b4fee12400b53863726429d4eb99d925019287cb"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/python-ci.yml",
+    "compiler_version": "0.1.0",
+    "divergences": []
+  }
+}

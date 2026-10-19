@@ -1,0 +1,45 @@
+name: Artifacts
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir -p dist && echo "$GITHUB_SHA" > dist/version.txt && echo bin > dist/app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/
+            !dist/**/*.map
+          if-no-files-found: error
+          overwrite: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ github.run_number }}
+          path: |
+            logs/*.log
+          if-no-files-found: ignore
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: fetched
+      - run: test "$(cat fetched/version.txt)" = "$GITHUB_SHA"
+  all:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: everything
+          merge-multiple: false
+      - run: ls -R everything
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          run-id: 123456
+          github-token: ${{ secrets.GITHUB_TOKEN }}

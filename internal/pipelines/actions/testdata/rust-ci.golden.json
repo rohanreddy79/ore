@@ -1,0 +1,140 @@
+{
+  "version": "0",
+  "id": ".github/workflows/rust-ci.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 (matches(event.ref_name, '^main$'))) || (event.type == 'io.ore.change.patchset.pushed')"
+    },
+    "events": [
+      {
+        "name": "push",
+        "branches": [
+          "main"
+        ]
+      },
+      {
+        "name": "pull_request"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "rust-ci/check",
+      "name": "check",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/cache@v4",
+            "repository": "actions/cache",
+            "sha": "1bd1e32a3bdc45362d1e726936510720a7c30a57",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {
+            "CARGO_TERM_COLOR": "always",
+            "RUSTFLAGS": "-D warnings"
+          },
+          "fail_fast": true,
+          "job": "check",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "rust-ci",
+          "workflow_name": "Rust"
+        },
+        "caches": [
+          {
+            "key": "cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}",
+            "restore_keys": [
+              "cargo-${{ runner.os }}-"
+            ],
+            "paths": [
+              "~/.cargo/registry",
+              "~/.cargo/git",
+              "target"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "actions/cache@v4",
+          "with": {
+            "key": "cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}",
+            "path": "~/.cargo/registry\n~/.cargo/git\ntarget\n",
+            "restore-keys": "cargo-${{ runner.os }}-"
+          }
+        },
+        {
+          "run": "cargo fmt --all -- --check"
+        },
+        {
+          "run": "cargo clippy --all-targets"
+        },
+        {
+          "run": "cargo test --all"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "caches": [
+          {
+            "key": "cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}",
+            "paths": [
+              "~/.cargo/registry",
+              "~/.cargo/git",
+              "target"
+            ]
+          }
+        ],
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:a609d4bc4449283f988b4b9041c2e5828c54615ae3a15fc2440eac2ad29fea40"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/rust-ci.yml",
+    "compiler_version": "0.1.0",
+    "divergences": []
+  }
+}

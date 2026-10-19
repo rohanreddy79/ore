@@ -1,0 +1,38 @@
+name: Outputs
+on: push
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    outputs:
+      count: ${{ steps.count.outputs.count }}
+      multiline: ${{ steps.count.outputs.report }}
+    steps:
+      - id: count
+        run: |
+          echo "count=3" >> "$GITHUB_OUTPUT"
+          {
+            echo "report<<EOF"
+            echo "line one"
+            echo "line two"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "BUILD_DATE=$(date -u +%F)" >> "$GITHUB_ENV"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "::add-mask::${{ secrets.API_KEY }}"
+          echo "::notice file=main.go,line=1::compiled"
+          echo "::warning::deprecated flag"
+      - run: |
+          echo "built on $BUILD_DATE with ${{ steps.count.outputs.count }} items"
+          echo "::set-output name=legacy::value"
+          echo "::group::details"
+          echo "${{ steps.count.outputs.report }}"
+          echo "::endgroup::"
+      - name: Summary
+        run: |
+          echo "### Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "| items | ${{ steps.count.outputs.count }} |" >> "$GITHUB_STEP_SUMMARY"
+  consume:
+    needs: produce
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ needs.produce.outputs.count }} / ${{ needs.produce.outputs.multiline }}"

@@ -1,0 +1,296 @@
+{
+  "version": "0",
+  "id": ".github/workflows/artifacts-between-jobs.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated')"
+    },
+    "events": [
+      {
+        "name": "push"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "artifacts-between-jobs/build",
+      "name": "build",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/upload-artifact@v4",
+            "repository": "actions/upload-artifact",
+            "sha": "b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "build",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "artifacts-between-jobs",
+          "workflow_name": "Artifacts"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "run": "mkdir -p dist \u0026\u0026 echo \"$GITHUB_SHA\" \u003e dist/version.txt \u0026\u0026 echo bin \u003e dist/app"
+        },
+        {
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "if-no-files-found": "error",
+            "name": "dist",
+            "overwrite": "true",
+            "path": "dist/\n!dist/**/*.map\n"
+          }
+        },
+        {
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "if-no-files-found": "ignore",
+            "name": "logs-${{ github.run_number }}",
+            "path": "logs/*.log\n"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {
+            "name": "dist",
+            "paths": [
+              "dist/",
+              "!dist/**/*.map"
+            ]
+          },
+          {
+            "name": "logs-${{ github.run_number }}",
+            "paths": [
+              "logs/*.log"
+            ]
+          }
+        ],
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:e2218d6f3c994af465570f136c6945a95737874b45178a1ff21dbd9cc87d530f"
+    },
+    {
+      "id": "artifacts-between-jobs/test",
+      "name": "test",
+      "needs": [
+        "artifacts-between-jobs/build"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/download-artifact@v4",
+            "repository": "actions/download-artifact",
+            "sha": "fa0a91b85d4f404e444e00e005971372dc801d16",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "test",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "artifacts-between-jobs",
+          "workflow_name": "Artifacts"
+        },
+        "artifacts_in": [
+          {
+            "from_task": "artifacts-between-jobs/build",
+            "name": "dist",
+            "path": "fetched"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/download-artifact@v4",
+          "with": {
+            "name": "dist",
+            "path": "fetched"
+          }
+        },
+        {
+          "run": "test \"$(cat fetched/version.txt)\" = \"$GITHUB_SHA\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:e968e609fe80cd043a9456c7becc4d3f5ec6fe0edf77410cf0ea2b65b6d8de8f"
+    },
+    {
+      "id": "artifacts-between-jobs/all",
+      "name": "all",
+      "needs": [
+        "artifacts-between-jobs/build",
+        "artifacts-between-jobs/test"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/download-artifact@v4",
+            "repository": "actions/download-artifact",
+            "sha": "fa0a91b85d4f404e444e00e005971372dc801d16",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "all",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "artifacts-between-jobs",
+          "workflow_name": "Artifacts"
+        },
+        "artifacts_in": [
+          {
+            "from_task": "",
+            "name": "*",
+            "path": "everything"
+          },
+          {
+            "from_task": "artifacts-between-jobs/build",
+            "name": "dist"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/download-artifact@v4",
+          "with": {
+            "merge-multiple": "false",
+            "path": "everything"
+          }
+        },
+        {
+          "run": "ls -R everything"
+        },
+        {
+          "uses": "actions/download-artifact@v4",
+          "with": {
+            "github-token": "${{ secrets.GITHUB_TOKEN }}",
+            "name": "dist",
+            "run-id": "123456"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:ce6e96f50357108ab28d8e4e5483c24c25da39dbb49bf51c702247bbeb570a49"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/artifacts-between-jobs.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "secrets.github-token",
+        "message": "secrets.GITHUB_TOKEN has no equivalent on Ore v0; an empty value is injected",
+        "location": "jobs.all.steps[2].with.github-token"
+      },
+      {
+        "code": "uses.input-unsupported",
+        "message": "download-artifact `run-id` is not supported; only artifacts of the current run can be downloaded",
+        "location": "jobs.all.steps[2].with.run-id"
+      },
+      {
+        "code": "uses.input-unsupported",
+        "message": "download-artifact `github-token` is not supported; only artifacts of the current run can be downloaded",
+        "location": "jobs.all.steps[2].with.github-token"
+      }
+    ]
+  }
+}

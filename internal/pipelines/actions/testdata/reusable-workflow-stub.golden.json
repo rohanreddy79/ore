@@ -1,0 +1,142 @@
+{
+  "version": "0",
+  "id": ".github/workflows/reusable-workflow-stub.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 (matches(event.ref_name, '^main$')))"
+    },
+    "events": [
+      {
+        "name": "push",
+        "branches": [
+          "main"
+        ]
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "reusable-workflow-stub/call-tests",
+      "name": "call-tests",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "params": {
+          "job": "call-tests",
+          "skip_reason": "reusable workflow ./.github/workflows/reusable-tests.yml is not supported",
+          "uses": "./.github/workflows/reusable-tests.yml",
+          "workflow": "reusable-workflow-stub",
+          "workflow_name": "Reusable caller"
+        }
+      },
+      "steps": [],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64"
+      },
+      "content_hash": "sha256:6f3b049445c29ff5fea7a3212122a9475d998e794f1f7f3483a1c8aef4fa2850"
+    },
+    {
+      "id": "reusable-workflow-stub/call-remote",
+      "name": "call-remote",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "params": {
+          "job": "call-remote",
+          "skip_reason": "reusable workflow acme/shared-workflows/.github/workflows/lint.yml@v2 is not supported",
+          "uses": "acme/shared-workflows/.github/workflows/lint.yml@v2",
+          "workflow": "reusable-workflow-stub",
+          "workflow_name": "Reusable caller"
+        }
+      },
+      "steps": [],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64"
+      },
+      "content_hash": "sha256:177729ea328dbf09bb29329cec6db1ff5380eeab489d22b8a5d8eec3def811f1"
+    },
+    {
+      "id": "reusable-workflow-stub/after",
+      "name": "after",
+      "needs": [
+        "reusable-workflow-stub/call-tests",
+        "reusable-workflow-stub/call-remote"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "after",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "reusable-workflow-stub",
+          "workflow_name": "Reusable caller"
+        }
+      },
+      "steps": [
+        {
+          "run": "echo \"after reusable workflows\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:5e0f410f54254469bbe247e1f0f34dbf98f19dbb33bd5147cc9bba08a22a5bd9"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/reusable-workflow-stub.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "job.reusable-workflow",
+        "message": "reusable workflow \"./.github/workflows/reusable-tests.yml\" is not supported in v0; the job is skipped and its dependents see it as skipped",
+        "location": "jobs.call-tests.uses"
+      },
+      {
+        "code": "job.reusable-workflow",
+        "message": "reusable workflow \"acme/shared-workflows/.github/workflows/lint.yml@v2\" is not supported in v0; the job is skipped and its dependents see it as skipped",
+        "location": "jobs.call-remote.uses"
+      }
+    ]
+  }
+}

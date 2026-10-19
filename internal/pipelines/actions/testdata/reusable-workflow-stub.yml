@@ -1,0 +1,22 @@
+name: Reusable caller
+on:
+  push:
+    branches: [main]
+jobs:
+  call-tests:
+    uses: ./.github/workflows/reusable-tests.yml
+    with:
+      go-version: '1.25'
+      coverage: true
+    secrets: inherit
+  call-remote:
+    uses: acme/shared-workflows/.github/workflows/lint.yml@v2
+    with:
+      config: .golangci.yml
+    secrets:
+      token: ${{ secrets.LINT_TOKEN }}
+  after:
+    needs: [call-tests, call-remote]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "after reusable workflows"

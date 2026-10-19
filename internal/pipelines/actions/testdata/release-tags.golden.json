@@ -1,0 +1,174 @@
+{
+  "version": "0",
+  "id": ".github/workflows/release-tags.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 (matches(event.ref_name, '^v[^/]*$')) \u0026\u0026 startsWith(event.ref, 'refs/tags/'))"
+    },
+    "events": [
+      {
+        "name": "push",
+        "tags": [
+          "v*"
+        ]
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "release-tags/goreleaser",
+      "name": "goreleaser",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-go@v5",
+            "repository": "actions/setup-go",
+            "sha": "0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/upload-artifact@v4",
+            "repository": "actions/upload-artifact",
+            "sha": "b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "softprops/action-gh-release@v2",
+            "repository": "softprops/action-gh-release",
+            "sha": "c062e08bd532815e2082a85e87e3ef29c3e6d191",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "goreleaser",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "release-tags",
+          "workflow_name": "Release"
+        },
+        "caches": [
+          {
+            "key": "setup-go-${{ runner.os }}-go-stable-${{ hashFiles('**/go.sum') }}",
+            "restore_keys": [
+              "setup-go-${{ runner.os }}-go-"
+            ],
+            "paths": [
+              "~/go/pkg/mod",
+              "~/.cache/go-build"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4",
+          "with": {
+            "fetch-depth": "0"
+          }
+        },
+        {
+          "uses": "actions/setup-go@v5",
+          "with": {
+            "go-version": "stable"
+          }
+        },
+        {
+          "run": "for os in linux darwin; do\n  GOOS=$os GOARCH=amd64 go build -o \"dist/app-$os-amd64\" ./cmd/app\ndone\n"
+        },
+        {
+          "uses": "softprops/action-gh-release@v2",
+          "with": {
+            "files": "dist/*",
+            "generate_release_notes": "true"
+          },
+          "env": {
+            "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+          }
+        },
+        {
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "name": "release-${{ github.ref_name }}",
+            "path": "dist/"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {
+            "name": "release-${{ github.ref_name }}",
+            "paths": [
+              "dist/"
+            ]
+          }
+        ],
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "permissions": {
+        "contents": "write"
+      },
+      "content_hash": "sha256:31aa7879b089314161a92ec056a1e0831239b2e0a3380e407a43ea9348b62c62"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/release-tags.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "trigger.unsupported-event",
+        "message": "event \"release\" is not supported; the workflow does not run for it on Ore",
+        "location": "on.release"
+      },
+      {
+        "code": "secrets.github-token",
+        "message": "secrets.GITHUB_TOKEN has no equivalent on Ore v0; an empty value is injected",
+        "location": "jobs.goreleaser.steps[3].env.GITHUB_TOKEN"
+      },
+      {
+        "code": "uses.unsupported-action",
+        "message": "softprops/action-gh-release@v2 is not implemented natively on Ore v0; the step is skipped at run time and recorded here",
+        "location": "jobs.goreleaser.steps[3]"
+      }
+    ]
+  }
+}

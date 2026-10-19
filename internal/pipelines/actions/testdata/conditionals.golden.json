@@ -1,0 +1,272 @@
+{
+  "version": "0",
+  "id": ".github/workflows/conditionals.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 (matches(event.ref_name, '^main$')) \u0026\u0026 (matches(event.ref_name, '^v[^/]*$')) \u0026\u0026 startsWith(event.ref, 'refs/tags/')) || (event.type == 'io.ore.change.patchset.pushed')"
+    },
+    "events": [
+      {
+        "name": "push",
+        "branches": [
+          "main"
+        ],
+        "tags": [
+          "v*"
+        ]
+      },
+      {
+        "name": "pull_request",
+        "types": [
+          "opened",
+          "synchronize",
+          "reopened",
+          "labeled"
+        ]
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "conditionals/checks",
+      "name": "checks",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "checks",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "conditionals",
+          "workflow_name": "Conditionals"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "On tags",
+          "run": "echo \"tag build\"",
+          "condition": "startsWith(github.ref, 'refs/tags/')"
+        },
+        {
+          "name": "Not on forks",
+          "run": "echo \"same repo\"",
+          "condition": "github.event.pull_request.head.repo.full_name == github.repository"
+        },
+        {
+          "name": "Contains",
+          "run": "echo \"pr or main\"",
+          "condition": "contains(github.event_name, 'pull') || contains(fromJSON('[\"main\", \"develop\"]'), github.ref_name)"
+        },
+        {
+          "name": "Format",
+          "run": "echo \"${{ format('{0} on {1} by {2}', github.workflow, github.ref_name, github.actor) }}\""
+        },
+        {
+          "id": "might-fail",
+          "run": "exit 1",
+          "continue_on_error": true
+        },
+        {
+          "run": "echo \"it failed but we continue\"",
+          "condition": "steps.might-fail.outcome == 'failure'"
+        },
+        {
+          "run": "echo \"job failed\"",
+          "condition": "failure()"
+        },
+        {
+          "run": "echo \"always\"",
+          "condition": "always()"
+        },
+        {
+          "run": "echo \"not cancelled\"",
+          "condition": "!cancelled() \u0026\u0026 success()"
+        },
+        {
+          "run": "echo \"debug\"",
+          "env": {
+            "DEBUG": "true"
+          },
+          "condition": "env.DEBUG == 'true'"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:5638364232cbc61de60e1a04cceeeaaafeb93827a30c8c75185d470dabb0a250"
+    },
+    {
+      "id": "conditionals/only-main",
+      "name": "only-main",
+      "needs": [
+        "conditionals/checks"
+      ],
+      "condition": "github.ref == 'refs/heads/main' \u0026\u0026 !contains(github.event.head_commit.message, '[skip ci]')",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "only-main",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "conditionals",
+          "workflow_name": "Conditionals"
+        }
+      },
+      "steps": [
+        {
+          "run": "echo \"main only\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:d4b1c128a14eaa355c082dfa09a9713e37dd4be71916cc877db130a5db401181"
+    },
+    {
+      "id": "conditionals/filter",
+      "name": "filter",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "filter",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "conditionals",
+          "workflow_name": "Conditionals"
+        }
+      },
+      "steps": [
+        {
+          "run": "echo \"object filters are not supported\"",
+          "condition": "steps.*.outcome == 'success'"
+        },
+        {
+          "run": "echo \"syntax error\"",
+          "condition": "github.ref = 'main'"
+        },
+        {
+          "run": "echo \"unknown context and function\"",
+          "condition": "wibble.wobble == 'x' \u0026\u0026 frobnicate(1)"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:a999b51b4f5e49996c60e28b1e74d2ae1611defccb4dead2844ad6ad3c9b722b"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/conditionals.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "expr.object-filter",
+        "message": "expression `steps.*.outcome == 'success'` uses the object filter (*), which is not supported",
+        "location": "jobs.filter.steps[0].if"
+      },
+      {
+        "code": "expr.parse-error",
+        "message": "cannot parse expression `github.ref = 'main'`: unexpected '=' at 11 (did you mean '==')",
+        "location": "jobs.filter.steps[1].if"
+      },
+      {
+        "code": "expr.unknown-context",
+        "message": "expression `wibble.wobble == 'x' \u0026\u0026 frobnicate(1)` uses unknown context \"wibble\"",
+        "location": "jobs.filter.steps[2].if"
+      },
+      {
+        "code": "expr.unknown-function",
+        "message": "expression `wibble.wobble == 'x' \u0026\u0026 frobnicate(1)` calls unknown function frobnicate()",
+        "location": "jobs.filter.steps[2].if"
+      }
+    ]
+  }
+}

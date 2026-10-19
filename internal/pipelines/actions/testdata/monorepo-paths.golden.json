@@ -1,0 +1,234 @@
+{
+  "version": "0",
+  "id": ".github/workflows/monorepo-paths.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 event.paths.exists(p, (matches(p, '^services/api/.*$') || matches(p, '^services/web/.*$') || matches(p, '^package\\.json$')))) || (event.type == 'io.ore.change.patchset.pushed' \u0026\u0026 event.paths.exists(p, !(matches(p, '^.*/[^/]*\\.md$'))))"
+    },
+    "events": [
+      {
+        "name": "push",
+        "paths": [
+          "services/api/**",
+          "services/web/**",
+          "package.json"
+        ]
+      },
+      {
+        "name": "pull_request",
+        "paths_ignore": [
+          "**/*.md"
+        ]
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "monorepo-paths/api",
+      "name": "api",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-24.04"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-go@v5",
+            "repository": "actions/setup-go",
+            "sha": "0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "api",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "monorepo-paths",
+          "workflow_name": "Monorepo"
+        },
+        "caches": [
+          {
+            "key": "setup-go-${{ runner.os }}-go-file-${{ hashFiles('**/go.sum') }}",
+            "restore_keys": [
+              "setup-go-${{ runner.os }}-go-"
+            ],
+            "paths": [
+              "~/go/pkg/mod",
+              "~/.cache/go-build"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "actions/setup-go@v5",
+          "with": {
+            "go-version-file": "services/api/go.mod"
+          }
+        },
+        {
+          "run": "go test ./...",
+          "working_directory": "services/api"
+        },
+        {
+          "run": "go build ./...",
+          "working_directory": "services/api"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-24.04"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:129e5808b206a6369eca341365c6a411b5bfc72f8a9d2836a85b754222851390"
+    },
+    {
+      "id": "monorepo-paths/web",
+      "name": "web",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-22.04"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-node@v4",
+            "repository": "actions/setup-node",
+            "sha": "39370e3970a6d050fe5d0e2d3f6f5f4d9c8e3b3c",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "pnpm/action-setup@v4",
+            "repository": "pnpm/action-setup",
+            "sha": "a3252b78c470c02df07e9d59298aecedc3ccdd6d",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "web",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "monorepo-paths",
+          "workflow_name": "Monorepo"
+        },
+        "caches": [
+          {
+            "key": "setup-node-${{ runner.os }}-pnpm-${{ hashFiles('services/web/pnpm-lock.yaml') }}",
+            "restore_keys": [
+              "setup-node-${{ runner.os }}-pnpm-"
+            ],
+            "paths": [
+              "~/.local/share/pnpm/store"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "9"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "cache": "pnpm",
+            "cache-dependency-path": "services/web/pnpm-lock.yaml",
+            "node-version-file": "services/web/.nvmrc"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile",
+          "working_directory": "services/web"
+        },
+        {
+          "run": "pnpm test",
+          "working_directory": "services/web"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-22.04"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:58be8fa506575d20801abdeb0806ede7d1f679e9bc06041012c733d2349817d8"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/monorepo-paths.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "uses.unsupported-action",
+        "message": "pnpm/action-setup@v4 is not implemented natively on Ore v0; the step is skipped at run time and recorded here",
+        "location": "jobs.web.steps[1]"
+      }
+    ]
+  }
+}

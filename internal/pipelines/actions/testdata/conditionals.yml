@@ -1,0 +1,53 @@
+name: Conditionals
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: On tags
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "tag build"
+      - name: Not on forks
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: echo "same repo"
+      - name: Contains
+        if: contains(github.event_name, 'pull') || contains(fromJSON('["main", "develop"]'), github.ref_name)
+        run: echo "pr or main"
+      - name: Format
+        run: echo "${{ format('{0} on {1} by {2}', github.workflow, github.ref_name, github.actor) }}"
+      - id: might-fail
+        run: exit 1
+        continue-on-error: true
+      - if: steps.might-fail.outcome == 'failure'
+        run: echo "it failed but we continue"
+      - if: failure()
+        run: echo "job failed"
+      - if: ${{ always() }}
+        run: echo "always"
+      - if: ${{ !cancelled() && success() }}
+        run: echo "not cancelled"
+      - if: env.DEBUG == 'true'
+        run: echo "debug"
+        env:
+          DEBUG: 'true'
+  only-main:
+    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "main only"
+  filter:
+    runs-on: ubuntu-latest
+    steps:
+      - if: steps.*.outcome == 'success'
+        run: echo "object filters are not supported"
+      - if: github.ref = 'main'
+        run: echo "syntax error"
+      - if: wibble.wobble == 'x' && frobnicate(1)
+        run: echo "unknown context and function"

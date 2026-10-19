@@ -1,0 +1,553 @@
+{
+  "version": "0",
+  "id": ".github/workflows/unsupported-features.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated')"
+    },
+    "events": [
+      {
+        "name": "push"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "unsupported-features/cross-platform/os=ubuntu-latest",
+      "name": "cross-platform (ubuntu-latest)",
+      "matrix_key": {
+        "os": "ubuntu-latest"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "cross-platform",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "unsupported-features",
+          "workflow_name": "Kitchen sink"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "run": "go test ./...",
+          "shell": "bash",
+          "working_directory": "app"
+        },
+        {
+          "run": "Write-Host \"powershell\"",
+          "shell": "pwsh",
+          "working_directory": "app"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:e4819f1fe3aaf9652a29b90d6ef77cf97d6506bbe03fbde3ea9ce827c496e4de"
+    },
+    {
+      "id": "unsupported-features/cross-platform/os=windows-latest",
+      "name": "cross-platform (windows-latest)",
+      "matrix_key": {
+        "os": "windows-latest"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": ""
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "cross-platform",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 1,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "unsupported-features",
+          "workflow_name": "Kitchen sink"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "run": "go test ./...",
+          "shell": "bash",
+          "working_directory": "app"
+        },
+        {
+          "run": "Write-Host \"powershell\"",
+          "shell": "pwsh",
+          "working_directory": "app"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "windows",
+        "arch": "x64",
+        "labels": [
+          "windows-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:6d391fe17acf97ebe2d4d68ef4676847b83ec81e9dadd59ecc1fb593e35adf4e"
+    },
+    {
+      "id": "unsupported-features/cross-platform/os=macos-14",
+      "name": "cross-platform (macos-14)",
+      "matrix_key": {
+        "os": "macos-14"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": ""
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "cross-platform",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 2,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "unsupported-features",
+          "workflow_name": "Kitchen sink"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "run": "go test ./...",
+          "shell": "bash",
+          "working_directory": "app"
+        },
+        {
+          "run": "Write-Host \"powershell\"",
+          "shell": "pwsh",
+          "working_directory": "app"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "macos",
+        "arch": "x64",
+        "labels": [
+          "macos-14"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:c6d761dc8c8ebc2e35a290ae96a18a7cd05cbe21a71476107b71ef52d2f2ad2a"
+    },
+    {
+      "id": "unsupported-features/with-services",
+      "name": "with-services",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "golang:1.25"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/github-script@v7",
+            "repository": "actions/github-script",
+            "sha": "60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "with-services",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "unsupported-features",
+          "workflow_name": "Kitchen sink"
+        },
+        "secrets": [
+          {
+            "path": "repos/acme/app/secrets/PGPASSWORD",
+            "mount": "env",
+            "name": "PGPASSWORD"
+          }
+        ],
+        "services": [
+          {
+            "name": "postgres",
+            "image": "postgres:16",
+            "env": {
+              "POSTGRES_PASSWORD": "postgres"
+            },
+            "ports": [
+              "5432:5432"
+            ]
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4",
+          "with": {
+            "path": "other",
+            "ref": "develop",
+            "repository": "acme/other",
+            "submodules": "recursive"
+          }
+        },
+        {
+          "uses": "actions/github-script@v7",
+          "with": {
+            "script": "github.rest.issues.createComment({ body: 'hi' })\n"
+          }
+        },
+        {
+          "uses": "docker://alpine:3.19",
+          "with": {
+            "args": "echo hello"
+          }
+        },
+        {
+          "uses": "./.github/actions/setup"
+        },
+        {
+          "run": "psql -h postgres -c 'select 1'",
+          "shell": "bash",
+          "working_directory": "app",
+          "env": {
+            "ALL": "${{ toJSON(secrets) }}",
+            "PGPASSWORD": "${{ secrets.PGPASSWORD }}",
+            "VAR": "${{ vars.REGION }}"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:63936ef041160c7cb806746ef05d2bb2ce4ce195b13e7a7477ae5b4eea50f193"
+    },
+    {
+      "id": "unsupported-features/self-hosted",
+      "name": "self-hosted",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "self-hosted",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "unsupported-features",
+          "workflow_name": "Kitchen sink"
+        }
+      },
+      "steps": [
+        {
+          "run": "nvidia-smi",
+          "shell": "bash",
+          "working_directory": "app"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "self-hosted",
+          "linux",
+          "gpu"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:0d9a95e3b218cbb7bafd82f58cb3684dbfa8c85ba5b0a19f17934be29d0c7f73"
+    },
+    {
+      "id": "unsupported-features/dynamic/",
+      "name": "dynamic ()",
+      "needs": [
+        "unsupported-features/with-services"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "dynamic",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "unsupported-features",
+          "workflow_name": "Kitchen sink"
+        }
+      },
+      "steps": [
+        {
+          "run": "echo dynamic",
+          "shell": "bash",
+          "working_directory": "app"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:52876beab08db2a03cbc308d2b412af62b3b5589ff4cb7bc9e66bd29b29d0afc"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/unsupported-features.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "trigger.unsupported-event",
+        "message": "event \"pull_request_target\" is not supported; the workflow does not run for it on Ore",
+        "location": "on.pull_request_target"
+      },
+      {
+        "code": "trigger.unsupported-event",
+        "message": "event \"issues\" is not supported; the workflow does not run for it on Ore",
+        "location": "on.issues"
+      },
+      {
+        "code": "step.unsupported-shell",
+        "message": "shell \"pwsh\" is not available on linux executors; the step fails at run time",
+        "location": "jobs.cross-platform.steps[2].shell"
+      },
+      {
+        "code": "runs-on.unsupported-os",
+        "message": "runs-on windows-latest: Ore v0 runs linux containers only; the job is skipped",
+        "location": "jobs.cross-platform.runs-on"
+      },
+      {
+        "code": "step.unsupported-shell",
+        "message": "shell \"pwsh\" is not available on linux executors; the step fails at run time",
+        "location": "jobs.cross-platform.steps[2].shell"
+      },
+      {
+        "code": "runs-on.unsupported-os",
+        "message": "runs-on macos-14: Ore v0 runs linux containers only; the job is skipped",
+        "location": "jobs.cross-platform.runs-on"
+      },
+      {
+        "code": "step.unsupported-shell",
+        "message": "shell \"pwsh\" is not available on linux executors; the step fails at run time",
+        "location": "jobs.cross-platform.steps[2].shell"
+      },
+      {
+        "code": "job.container-options-ignored",
+        "message": "container options, credentials, ports and volumes are ignored; only the image is used",
+        "location": "jobs.with-services.container"
+      },
+      {
+        "code": "job.services-unsupported",
+        "message": "service container \"postgres\" (postgres:16) is not started in v0; steps that need it will fail",
+        "location": "jobs.with-services.services.postgres"
+      },
+      {
+        "code": "uses.input-unsupported",
+        "message": "checkout of another repository (acme/other) is not supported; the step fails at run time",
+        "location": "jobs.with-services.steps[0].with.repository"
+      },
+      {
+        "code": "uses.input-unsupported",
+        "message": "checkout ref \"develop\" is ignored; the run's commit is checked out",
+        "location": "jobs.with-services.steps[0].with.ref"
+      },
+      {
+        "code": "uses.input-unsupported",
+        "message": "submodules are not materialized in v0",
+        "location": "jobs.with-services.steps[0].with.submodules"
+      },
+      {
+        "code": "uses.unsupported-action",
+        "message": "actions/github-script@v7 is not implemented natively on Ore v0; the step is skipped at run time and recorded here",
+        "location": "jobs.with-services.steps[1]"
+      },
+      {
+        "code": "uses.docker-action",
+        "message": "docker action \"docker://alpine:3.19\" is not supported in v0; the step is skipped at run time",
+        "location": "jobs.with-services.steps[2]"
+      },
+      {
+        "code": "uses.local-action",
+        "message": "local action \"./.github/actions/setup\" is not supported in v0; the step is skipped at run time",
+        "location": "jobs.with-services.steps[3]"
+      },
+      {
+        "code": "secrets.dynamic-reference",
+        "message": "expression `toJSON(secrets)` reads the secrets context dynamically; only secrets.NAME references are injected",
+        "location": "jobs.with-services.steps[4].env.ALL"
+      },
+      {
+        "code": "job.concurrency-ignored",
+        "message": "job-level concurrency is ignored in v0 (runs are sequential)",
+        "location": "jobs.self-hosted.concurrency"
+      },
+      {
+        "code": "runs-on.labels-mapped",
+        "message": "runs-on label \"self-hosted\" has no runner pool on Ore v0; mapped to the default linux image",
+        "location": "jobs.self-hosted.runs-on"
+      },
+      {
+        "code": "runs-on.labels-mapped",
+        "message": "runs-on label \"linux\" has no runner pool on Ore v0; mapped to the default linux image",
+        "location": "jobs.self-hosted.runs-on"
+      },
+      {
+        "code": "runs-on.labels-mapped",
+        "message": "runs-on label \"gpu\" has no runner pool on Ore v0; mapped to the default linux image",
+        "location": "jobs.self-hosted.runs-on"
+      },
+      {
+        "code": "job.unknown-key",
+        "message": "key \"unknown-key\" is not supported and is ignored",
+        "location": "jobs.dynamic.unknown-key"
+      },
+      {
+        "code": "matrix.dynamic",
+        "message": "matrix from an expression (${{ fromJSON(needs.plan.outputs.matrix) }}) cannot be expanded at plan time; the job runs once with an empty matrix",
+        "location": "jobs.dynamic.strategy.matrix"
+      }
+    ]
+  }
+}
