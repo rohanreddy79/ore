@@ -61,7 +61,7 @@ ore status                                          # the change, its patch sets
 - `ore sync` catches up with saves others made to the change, then merges the default branch into the change on the server and refreshes the tree. A file edited locally and changed upstream is a conflict: the upstream version is written beside it as `<path>.upstream` (delete it when done), or merged in place with markers under `--inline`. A save is refused while a conflict is unresolved.
 - `ore land` uses the strategy the autonomy level implies: below L3 the server merges at once (the policy decides), at L3 the pipeline verifies the head first, at L4 and above the merge happens first and a red verification reverts it. The exit status is 0 only when the change landed.
 
-The git bridge stays for migration and for tools that need it (`git clone`, `git push`), and the server keeps git as its object format; the workstation needs neither. `docs/changes/client.md` has the details and the edge cases.
+The git bridge stays for migration and for tools that need it (`git clone`, `git push`), and the server keeps git as its object format; the workstation needs neither. When a team's last day of git has come, an owner switches the bridge off for the organization (`ore org git-transport acme read-only`, then `off`): git clients are refused with a message that names `ore open`, while the API, the web app, pipelines, agents and the client keep working. `docs/changes/client.md` has the client's details and edge cases; `docs/10` §7 is the checklist for the switch.
 
 ## Start here
 

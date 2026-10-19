@@ -113,7 +113,7 @@ working without git (ADR 0016; ORE_TOKEN, else ~/.config/ore/credentials written
   ore status                                           the change, its patch sets, runs and deployments, and what is pending here
 
 client (ORE_URL, ORE_TOKEN or --url/--token)
-  ore org create NAME | org list
+  ore org create NAME | org list | org settings NAME | org git-transport NAME on|read-only|off [--reason R]
   ore repo create ORG/NAME [--level 2] [--branch main] [--port 8080] | repo list | repo show ORG/NAME | repo level ORG/NAME N [--reason R]
   ore commit ORG/NAME -m MSG [--branch B] FILE...       commit files through the API (no clone)
   ore issue create ORG/NAME TITLE [--body B] | issue list ORG/NAME | issue close ORG/NAME N
@@ -265,7 +265,7 @@ func runClient(cmd string, args []string) error {
 		}
 		return nil
 	case "org":
-		if err := need(1, "create NAME | list"); err != nil {
+		if err := need(1, "create NAME | list | settings NAME | git-transport NAME on|read-only|off [--reason R]"); err != nil {
 			return err
 		}
 		switch pos[0] {
@@ -276,6 +276,22 @@ func runClient(cmd string, args []string) error {
 			return c.print("POST", "/api/v0/orgs", map[string]string{"name": pos[1]})
 		case "list":
 			return c.print("GET", "/api/v0/orgs", nil)
+		case "settings":
+			if err := need(2, "settings NAME"); err != nil {
+				return err
+			}
+			return c.print("GET", "/api/v0/orgs/"+pos[1]+"/settings", nil)
+		case "git-transport":
+			// ADR 0016 §3: switch the git bridge off for an organization (or
+			// to read-only first); the API, the web app and `ore open` keep working.
+			if err := need(3, "git-transport NAME on|read-only|off [--reason R]"); err != nil {
+				return err
+			}
+			in := map[string]any{"git_transport": pos[2]}
+			if reason := fl.str("reason", ""); reason != "" {
+				in["reason"] = reason
+			}
+			return c.print("PATCH", "/api/v0/orgs/"+pos[1]+"/settings", in)
 		}
 	case "repo":
 		if err := need(1, "create|list|show|level"); err != nil {

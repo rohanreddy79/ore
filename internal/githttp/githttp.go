@@ -92,6 +92,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "authentication required", http.StatusUnauthorized)
 		return
 	}
+	// The organization's git transport mode (ADR 0016 §3) is read after
+	// authentication, so an anonymous probe learns nothing from it.
+	st, err := h.DB.OrgSettings(r.Context(), ledger.Org{ID: repo.OrgID, Name: repo.Org})
+	if err != nil {
+		http.Error(w, "organization settings: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	service := r.URL.Query().Get("service")
+	write := rest == "git-receive-pack" || (rest == "info/refs" && service == "git-receive-pack")
+	if msg := TransportRefusal(st, repo.Name, write); msg != "" {
+		h.refuse(w, r, rest, service, st.GitTransport, msg, *actor)
+		return
+	}
 	repoPath := RepoPath(h.ReposDir, org, name)
 	env := []string{
 		"GIT_PROTOCOL=" + r.Header.Get("Git-Protocol"),
@@ -103,7 +116,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case rest == "info/refs" && r.Method == http.MethodGet:
-		service := r.URL.Query().Get("service")
 		if service != "git-upload-pack" && service != "git-receive-pack" {
 			http.Error(w, "smart HTTP only: add ?service=git-upload-pack", http.StatusForbidden)
 			return
@@ -139,6 +151,50 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func pktLine(s string) string { return fmt.Sprintf("%04x%s", len(s)+4, s) }
+
+// TransportRefusal is what a git user reads when the organization's git
+// transport mode does not allow the request (ADR 0016 §3), or "" when it is
+// allowed: the whole bridge is off, or pushes are off in read-only mode. The
+// message names the Ore client command that replaces the git one, then the
+// reason the owner recorded. Smart HTTP sends it as an ERR packet and SSH
+// prints it on stderr, so both transports show the same text.
+func TransportRefusal(st ledger.OrgSettings, repo string, write bool) string {
+	var msg string
+	switch {
+	case st.GitTransport == ledger.GitTransportOff:
+		msg = fmt.Sprintf("the git transport is off for %s; use the Ore client: ore open %s/%s", st.Org, st.Org, repo)
+	case st.GitTransport == ledger.GitTransportReadOnly && write:
+		msg = fmt.Sprintf("git pushes are off for %s; save your work with the Ore client: ore open %s/%s, then ore save", st.Org, st.Org, repo)
+	default:
+		return ""
+	}
+	if st.GitTransportReason != "" {
+		msg += " (" + st.GitTransportReason + ")"
+	}
+	return msg
+}
+
+// refuse answers a request the organization's git transport mode refuses.
+// The ref advertisement (GET info/refs) is answered the way git expects a
+// smart server to speak: 200, the service header, then an ERR packet, which
+// git prints as "fatal: remote error: <message>" over protocol v0 and v2 (an
+// error status would show the user nothing but the number). The RPC endpoints, which a client only
+// reaches after an advertisement, answer 403 with the message as text.
+func (h *Handler) refuse(w http.ResponseWriter, r *http.Request, rest, service, mode, msg string, actor ledger.Actor) {
+	h.logger().Info("git transport refused", "mode", mode, "actor", actor.Kind+"/"+actor.ID, "path", r.URL.Path, "reason", msg)
+	w.Header().Set("X-Ore-Git-Transport", mode)
+	w.Header().Set("Cache-Control", "no-cache, max-age=0, must-revalidate")
+	if rest == "info/refs" && r.Method == http.MethodGet && (service == "git-upload-pack" || service == "git-receive-pack") {
+		w.Header().Set("Content-Type", "application/x-"+service+"-advertisement")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, pktLine("# service="+service+"\n"))
+		io.WriteString(w, "0000")
+		io.WriteString(w, pktLine("ERR "+msg+"\n"))
+		io.WriteString(w, "0000")
+		return
+	}
+	http.Error(w, "ore: "+msg, http.StatusForbidden)
+}
 
 // advertise answers GET info/refs for the smart protocol.
 func (h *Handler) advertise(w http.ResponseWriter, r *http.Request, repoPath, service string, env []string) {
