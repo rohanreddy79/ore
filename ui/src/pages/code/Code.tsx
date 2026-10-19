@@ -1,69 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, File, FileCode2, Folder, FolderOpen, GitCommitHorizontal, History, Plus, Search } from 'lucide-react'
+import { File, FileCode2, GitCommitHorizontal, History, Plus, Search } from 'lucide-react'
 import { Button, Card, Dialog, EmptyState, Field, Input, Pill, SkeletonRows, Textarea, useToast } from '../../design'
 import { ApiError, repoBase } from '../../lib/api'
 import { refName } from '../../lib/format'
 import { useHotkey } from '../../lib/keyboard'
-import { actions, qk, useBlob, useFeatures, useLog, useRefs, useRepo, useTree } from '../../lib/queries'
+import { actions, qk, scanTree, useBlob, useFeatures, useLog, useRefs, useRepo, useTreeDir } from '../../lib/queries'
 import { Markdown, RefPicker, TimeAgo, useDocumentTitle } from '../../shell/common'
 import { NotFound } from '../../shell/NotFound'
 import { FileView } from './FileView'
+import { DirListing, TreeNav, fuzzyScore, type TreeEntry } from './tree'
 
-type Node = { name: string; path: string; dir: boolean; children: Map<string, Node> }
-
-export function buildTree(paths: string[]): Node {
-  const root: Node = { name: '', path: '', dir: true, children: new Map() }
-  for (const p of paths) {
-    const parts = p.split('/')
-    let cur = root
-    for (let i = 0; i < parts.length; i++) {
-      const name = parts[i]!
-      const isLast = i === parts.length - 1
-      let next = cur.children.get(name)
-      if (!next) {
-        next = { name, path: parts.slice(0, i + 1).join('/'), dir: !isLast, children: new Map() }
-        cur.children.set(name, next)
-      }
-      cur = next
-    }
-  }
-  return root
-}
-
-export function sortedChildren(n: Node): Node[] {
-  return [...n.children.values()].sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1))
-}
-
-export function findNode(root: Node, path: string): Node | null {
-  if (!path) return root
-  let cur = root
-  for (const part of path.split('/')) {
-    const n = cur.children.get(part)
-    if (!n) return null
-    cur = n
-  }
-  return cur
-}
-
-/** Fuzzy subsequence scoring for the file finder; lower is better. */
-export function fuzzyScore(q: string, s: string): number | null {
-  const lq = q.toLowerCase()
-  const ls = s.toLowerCase()
-  let qi = 0
-  let score = 0
-  let last = -1
-  for (let i = 0; i < ls.length && qi < lq.length; i++) {
-    if (ls[i] === lq[qi]) {
-      score += last >= 0 ? i - last - 1 : i
-      last = i
-      qi++
-    }
-  }
-  if (qi < lq.length) return null
-  return score + (ls.length - last)
-}
+export { fuzzyScore }
 
 function safeDecode(s: string): string {
   try {
@@ -93,27 +42,23 @@ export function CodePage() {
     return refRaw
   }, [refRaw, refs.data])
   const path = params._splat ? params._splat.replace(/\/+$/, '') : ''
-  const tree = useTree(org, repo, ref)
+  const dirPath = isBlob ? path.split('/').slice(0, -1).join('/') : path
+  const root = useTreeDir(org, repo, ref, '')
   const [finderOpen, setFinderOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   useDocumentTitle(`${path ? path + ' · ' : ''}${org}/${repo}`)
-
-  const root = useMemo(() => buildTree(tree.data ?? []), [tree.data])
-  const node = useMemo(() => findNode(root, path), [root, path])
-  const dirView = !isBlob
-  const showBlob = isBlob || (node !== null && !node.dir && path !== '')
   useHotkey('t', () => setFinderOpen(true))
 
   // TanStack encodes path params itself (a slash becomes %2F); pass the bare name.
   const refSlug = (r: string) => refName(r) || r
-  const goTree = (p: string, r = ref) => void navigate({ to: p ? '/$org/$repo/tree/$ref/$' : '/$org/$repo/tree/$ref', params: { org, repo, ref: refSlug(r), _splat: p } as never })
-  const goBlob = (p: string, r = ref) => void navigate({ to: '/$org/$repo/blob/$ref/$', params: { org, repo, ref: refSlug(r), _splat: p } as never })
+  const goTree = useCallback((p: string, r = ref) => void navigate({ to: p ? '/$org/$repo/tree/$ref/$' : '/$org/$repo/tree/$ref', params: { org, repo, ref: refSlug(r), _splat: p } as never }), [navigate, org, repo, ref])
+  const goBlob = useCallback((p: string, r = ref) => void navigate({ to: '/$org/$repo/blob/$ref/$', params: { org, repo, ref: refSlug(r), _splat: p } as never }), [navigate, org, repo, ref])
 
   if (repoQ.isError && repoQ.error instanceof ApiError && repoQ.error.status === 404) return <NotFound what="repository" />
-  if (!ref || (tree.isPending && !tree.data)) return <SkeletonRows rows={8} />
+  if (!ref || (root.isPending && !root.data)) return <SkeletonRows rows={8} />
 
-  const emptyRepo = tree.isError || (tree.data && tree.data.length === 0 && !path)
-  if (emptyRepo && !path) return <EmptyRepo org={org} repo={repo} branch={repoQ.data?.default_branch ?? 'main'} />
+  const emptyRepo = !path && (root.isError || (root.data && root.data.entries.length === 0))
+  if (emptyRepo) return <EmptyRepo org={org} repo={repo} branch={repoQ.data?.default_branch ?? 'main'} />
 
   return (
     <div className="code-layout">
@@ -123,11 +68,11 @@ export function CodePage() {
             <Search /> Find file
           </Button>
         </div>
-        <TreeNav root={root} current={path} onOpenDir={goTree} onOpenFile={goBlob} />
+        <TreeNav org={org} repo={repo} refFull={ref} current={path} expand={dirPath} onOpenDir={goTree} onOpenFile={goBlob} />
       </aside>
       <div className="stack">
         <div className="row" style={{ gap: 'var(--sp-3)' }}>
-          <RefPicker refs={refs.data} current={ref} onPick={(r) => (showBlob ? goBlob(path, r) : goTree(path, r))} />
+          <RefPicker refs={refs.data} current={ref} onPick={(r) => (isBlob ? goBlob(path, r) : goTree(path, r))} />
           <nav className="breadcrumb-path grow" aria-label="Path">
             <Link to="/$org/$repo" params={{ org, repo }} className="quiet">
               {repo}
@@ -152,113 +97,43 @@ export function CodePage() {
           <Link to="/$org/$repo/commits/$ref" params={{ org, repo, ref: refSlug(ref) }} className="btn sm">
             <History /> History
           </Link>
-          {dirView && !showBlob ? (
+          {!isBlob ? (
             <Button size="sm" onClick={() => setEditOpen(true)}>
               <Plus /> New file
             </Button>
           ) : null}
         </div>
-        {showBlob ? (
-          <BlobPane org={org} repo={repo} refFull={ref} path={path} onEdit={() => setEditOpen(true)} />
-        ) : node ? (
-          <DirPane org={org} repo={repo} refFull={ref} node={node} onOpenDir={goTree} onOpenFile={goBlob} />
-        ) : (
-          <NotFound what="path" />
-        )}
+        {isBlob ? <BlobPane org={org} repo={repo} refFull={ref} path={path} onEdit={() => setEditOpen(true)} /> : <DirPane org={org} repo={repo} refFull={ref} path={path} onOpenDir={goTree} onOpenFile={goBlob} />}
       </div>
-      <FileFinder open={finderOpen} onClose={() => setFinderOpen(false)} paths={tree.data ?? []} onPick={(p) => goBlob(p)} />
-      <EditFileDialog open={editOpen} onClose={() => setEditOpen(false)} org={org} repo={repo} refFull={ref} path={showBlob ? path : ''} dir={showBlob ? path.split('/').slice(0, -1).join('/') : path} />
+      <FileFinder open={finderOpen} onClose={() => setFinderOpen(false)} org={org} repo={repo} refFull={ref} onPick={(p) => goBlob(p)} />
+      <EditFileDialog open={editOpen} onClose={() => setEditOpen(false)} org={org} repo={repo} refFull={ref} path={isBlob ? path : ''} dir={dirPath} />
     </div>
   )
 }
 
-function TreeNav({ root, current, onOpenDir, onOpenFile }: { root: Node; current: string; onOpenDir: (p: string) => void; onOpenFile: (p: string) => void }) {
-  const [open, setOpen] = useState<Set<string>>(() => {
-    const s = new Set<string>()
-    const parts = current.split('/')
-    for (let i = 1; i < parts.length; i++) s.add(parts.slice(0, i).join('/'))
-    return s
-  })
-  useEffect(() => {
-    setOpen((s) => {
-      const n = new Set(s)
-      const parts = current.split('/')
-      for (let i = 1; i <= parts.length; i++) n.add(parts.slice(0, i).join('/'))
-      return n
-    })
-  }, [current])
-  const toggle = (p: string) =>
-    setOpen((s) => {
-      const n = new Set(s)
-      if (n.has(p)) n.delete(p)
-      else n.add(p)
-      return n
-    })
-  const render = (n: Node, depth: number): ReactElement[] =>
-    sortedChildren(n).map((c) => (
-      <li key={c.path}>
-        {c.dir ? (
-          <>
-            <button type="button" className="node" aria-expanded={open.has(c.path)} aria-current={c.path === current ? 'page' : undefined} onClick={() => { toggle(c.path); onOpenDir(c.path) }} style={{ paddingLeft: 8 + depth * 12 }} title={c.path}>
-              <ChevronRight className="chev" aria-hidden />
-              {open.has(c.path) ? <FolderOpen aria-hidden /> : <Folder aria-hidden />}
-              <span className="truncate">{c.name}</span>
-            </button>
-            {open.has(c.path) ? <ul>{render(c, depth + 1)}</ul> : null}
-          </>
-        ) : (
-          <button type="button" className="node" aria-current={c.path === current ? 'page' : undefined} onClick={() => onOpenFile(c.path)} style={{ paddingLeft: 8 + depth * 12 + 18 }} title={c.path}>
-            <File aria-hidden />
-            <span className="truncate">{c.name}</span>
-          </button>
-        )}
-      </li>
-    ))
-  return <ul className="tree">{render(root, 0)}</ul>
-}
-
-function DirPane({ org, repo, refFull, node, onOpenDir, onOpenFile }: { org: string; repo: string; refFull: string; node: Node; onOpenDir: (p: string) => void; onOpenFile: (p: string) => void }) {
-  const children = sortedChildren(node)
-  const readme = children.find((c) => !c.dir && /^readme(\.md|\.markdown|\.txt)?$/i.test(c.name))
+function DirPane({ org, repo, refFull, path, onOpenDir, onOpenFile }: { org: string; repo: string; refFull: string; path: string; onOpenDir: (p: string) => void; onOpenFile: (p: string) => void }) {
+  const [readme, setReadme] = useState<TreeEntry | null>(null)
   const readmeBlob = useBlob(org, repo, refFull, readme?.path ?? '', !!readme)
   const log = useLog(org, repo, refFull)
   const last = log.data?.[0]
+  const header = last ? (
+    <div className="last-commit">
+      <GitCommitHorizontal size={16} aria-hidden style={{ color: 'var(--fg-muted)' }} />
+      <span className="muted">{last.author}</span>
+      <Link to="/$org/$repo/commit/$oid" params={{ org, repo, oid: last.oid }} className="msg quiet" title={last.subject}>
+        {last.subject}
+      </Link>
+      <span className="muted small">
+        <Link to="/$org/$repo/commit/$oid" params={{ org, repo, oid: last.oid }} className="mono quiet">
+          {last.oid.slice(0, 7)}
+        </Link>{' '}
+        · <TimeAgo iso={last.date} />
+      </span>
+    </div>
+  ) : null
   return (
     <>
-      <div className="card file-list">
-        {last ? (
-          <div className="last-commit">
-            <GitCommitHorizontal size={16} aria-hidden style={{ color: 'var(--fg-muted)' }} />
-            <span className="muted">{last.author}</span>
-            <Link to="/$org/$repo/commit/$oid" params={{ org, repo, oid: last.oid }} className="msg quiet" title={last.subject}>
-              {last.subject}
-            </Link>
-            <span className="muted small">
-              <Link to="/$org/$repo/commit/$oid" params={{ org, repo, oid: last.oid }} className="mono quiet">
-                {last.oid.slice(0, 7)}
-              </Link>{' '}
-              · <TimeAgo iso={last.date} />
-            </span>
-          </div>
-        ) : null}
-        <div className="list" role="list">
-          {node.path ? (
-            <button type="button" className="list-row" onClick={() => onOpenDir(node.path.split('/').slice(0, -1).join('/'))} style={{ background: 'none', border: 0, borderTop: 0, width: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}>
-              <Folder aria-hidden />
-              <span>..</span>
-            </button>
-          ) : null}
-          {children.map((c) => (
-            <button key={c.path} type="button" className="list-row" role="listitem" onClick={() => (c.dir ? onOpenDir(c.path) : onOpenFile(c.path))} style={{ background: 'none', border: 0, borderTop: '1px solid var(--border)', width: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}>
-              {c.dir ? <Folder aria-hidden /> : <FileCode2 aria-hidden />}
-              <span className="truncate" style={{ fontFamily: c.dir ? undefined : 'var(--font-mono)' }}>
-                {c.name}
-              </span>
-              {c.dir ? <span className="subtle small">{c.children.size} items</span> : null}
-            </button>
-          ))}
-        </div>
-      </div>
+      <DirListing org={org} repo={repo} refFull={refFull} path={path} onOpenDir={onOpenDir} onOpenFile={onOpenFile} header={header} onReadme={setReadme} />
       {readme && readmeBlob.data && !readmeBlob.data.binary ? (
         <div className="card">
           <div className="card-head">
@@ -305,27 +180,59 @@ function BlobPane({ org, repo, refFull, path, onEdit }: { org: string; repo: str
   )
 }
 
-function FileFinder({ open, onClose, paths, onPick }: { open: boolean; onClose: () => void; paths: string[]; onPick: (p: string) => void }) {
+/**
+ * The file finder scans the repository page by page (20,000 entries per
+ * request), keeping only the best matches, so even a 100,000-file repository
+ * never sits in the browser's memory. Results refine as pages arrive.
+ */
+function FileFinder({ open, onClose, org, repo, refFull, onPick }: { open: boolean; onClose: () => void; org: string; repo: string; refFull: string; onPick: (p: string) => void }) {
   const [q, setQ] = useState('')
   const [idx, setIdx] = useState(0)
+  const [hits, setHits] = useState<string[]>([])
+  const [progress, setProgress] = useState<{ scanned: number; total: number; done: boolean } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Enter pressed while the scan is still running: open the first match when it arrives.
+  const enterPending = useRef(false)
   useEffect(() => {
     if (open) {
       setQ('')
       setIdx(0)
+      setHits([])
+      setProgress(null)
+      enterPending.current = false
       setTimeout(() => inputRef.current?.focus(), 0)
     }
   }, [open])
-  const hits = useMemo(() => {
-    if (!q.trim()) return paths.slice(0, 50)
-    return paths
-      .map((p) => ({ p, s: fuzzyScore(q.trim(), p) }))
-      .filter((x): x is { p: string; s: number } => x.s !== null)
-      .sort((a, b) => a.s - b.s || a.p.length - b.p.length)
-      .slice(0, 50)
-      .map((x) => x.p)
-  }, [q, paths])
-  useEffect(() => setIdx(0), [q])
+  useEffect(() => {
+    if (!open) return
+    const needle = q.trim()
+    const ctl = new AbortController()
+    setIdx(0)
+    const t = setTimeout(() => {
+      const keep = needle ? (p: string) => fuzzyScore(needle, p) : (_p: string) => 0
+      scanTree(org, repo, refFull, keep, {
+        max: 50,
+        signal: ctl.signal,
+        onProgress: (p) => {
+          const paths = p.hits.map((h) => h.path)
+          setHits(paths)
+          setProgress({ scanned: p.scanned, total: p.total, done: p.done })
+          if (enterPending.current && paths[0]) {
+            enterPending.current = false
+            ctl.abort()
+            onClose()
+            onPick(paths[0])
+          }
+        },
+      }).catch(() => {
+        if (!ctl.signal.aborted) setProgress({ scanned: 0, total: 0, done: true })
+      })
+    }, needle ? 150 : 0)
+    return () => {
+      clearTimeout(t)
+      ctl.abort()
+    }
+  }, [q, open, org, repo, refFull, onClose, onPick])
   return (
     <Dialog open={open} onClose={onClose} title="Go to file">
       <div className="stack">
@@ -334,7 +241,10 @@ function FileFinder({ open, onClose, paths, onPick }: { open: boolean; onClose: 
           <Input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a path…" aria-label="File path" autoComplete="off" onKeyDown={(e) => {
             if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, hits.length - 1)) }
             else if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)) }
-            else if (e.key === 'Enter' && hits[idx]) { onClose(); onPick(hits[idx]!) }
+            else if (e.key === 'Enter') {
+              if (hits[idx]) { onClose(); onPick(hits[idx]!) }
+              else enterPending.current = true
+            }
           }} />
         </div>
         <div className="list" role="listbox" aria-label="Matching files" style={{ maxHeight: 360, overflow: 'auto' }}>
@@ -344,8 +254,12 @@ function FileFinder({ open, onClose, paths, onPick }: { open: boolean; onClose: 
               <span className="mono small truncate">{p}</span>
             </div>
           ))}
-          {hits.length === 0 ? <p className="muted" style={{ padding: 'var(--sp-3)' }}>No files match.</p> : null}
+          {hits.length === 0 && progress?.done ? <p className="muted" style={{ padding: 'var(--sp-3)' }}>No files match.</p> : null}
         </div>
+        <p className="subtle small" aria-live="polite">
+          {progress ? (progress.done ? `Searched ${progress.scanned.toLocaleString()} of ${progress.total.toLocaleString()} entries.` : `Searching… ${progress.scanned.toLocaleString()} of ${progress.total.toLocaleString()} entries`) : 'Searching…'}
+          {hits.length >= 50 ? ' Showing the best 50 matches; type more to narrow.' : ''}
+        </p>
       </div>
     </Dialog>
   )
@@ -362,7 +276,6 @@ function EditFileDialog({ open, onClose, org, repo, refFull, path, dir }: { open
   const [message, setMessage] = useState('')
   const [branch, setBranch] = useState(refName(refFull))
   const [busy, setBusy] = useState(false)
-  const { data: features } = useFeatures()
   useEffect(() => {
     if (!open) return
     setFilePath(path || (dir ? dir + '/' : ''))
@@ -388,8 +301,6 @@ function EditFileDialog({ open, onClose, org, repo, refFull, path, dir }: { open
       setBusy(false)
     }
   }
-  const protectedBranch = refFull === `refs/heads/${features ? '' : ''}` // placeholder; protection is enforced server-side
-  void protectedBranch
   return (
     <Dialog open={open} onClose={onClose} title={path ? `Edit ${path}` : 'New file'} wide foot={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!filePath.trim()} onClick={() => void submit()}>Commit to {branch || 'branch'}</Button></>}>
       <div className="stack">

@@ -27,7 +27,7 @@ export function onApiError(fn: Listener): () => void {
 
 export type ApiInit = Omit<RequestInit, 'body'> & { body?: unknown; raw?: boolean; quiet?: boolean; signal?: AbortSignal }
 
-async function parseError(res: Response): Promise<ApiError> {
+export async function parseError(res: Response): Promise<ApiError> {
   let message = `${res.status} ${res.statusText}`
   let body: unknown
   try {

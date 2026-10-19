@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { buildTree, findNode, fuzzyScore, sortedChildren } from './Code'
+import { fuzzyScore } from './Code'
 import { parseLineHash } from './FileView'
+import { ancestorsOf, parseChildren } from './tree'
 
-describe('file tree', () => {
-  const root = buildTree(['README.md', 'src/a.ts', 'src/b/c.ts', 'docs/x.md'])
-  it('builds nested nodes with directories first', () => {
-    expect(sortedChildren(root).map((n) => [n.name, n.dir])).toEqual([
-      ['docs', true],
-      ['src', true],
-      ['README.md', false],
+describe('code helpers', () => {
+  it('parses a depth-1 listing into sorted children, directories first', () => {
+    expect(parseChildren(['src/b.ts', 'src/', 'README.md', 'docs/', 'a.txt']).map((c) => [c.name, c.path, c.dir])).toEqual([
+      ['docs', 'docs', true],
+      ['src', 'src', true],
+      ['a.txt', 'a.txt', false],
+      ['b.ts', 'src/b.ts', false],
+      ['README.md', 'README.md', false],
     ])
-    expect(findNode(root, 'src/b')?.children.has('c.ts')).toBe(true)
-    expect(findNode(root, 'nope')).toBeNull()
+  })
+  it('lists the ancestors of a path', () => {
+    expect(ancestorsOf('a/b/c')).toEqual(['a', 'a/b'])
+    expect(ancestorsOf('a')).toEqual([])
+    expect(ancestorsOf('')).toEqual([])
   })
   it('fuzzy scores paths', () => {
     expect(fuzzyScore('sat', 'src/a.ts')).not.toBeNull()
