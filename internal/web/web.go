@@ -9,6 +9,7 @@ package web
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -390,7 +391,14 @@ func (s *Server) Handler() http.Handler {
 		}
 		return respond(w, nil, v)
 	})
-	// server-side commit through the API: no clone, no working copy (ADR 0014)
+	// server-side commit through the API: no clone, no working copy (ADR 0014).
+	// `base` is the commit the caller built on: a new branch starts there
+	// (default: the default branch's tip) and an existing branch must still be
+	// there (409 "branch moved" with the tip otherwise). `merge` makes the
+	// commit a merge of that commit into the branch: the tree is the
+	// server-side three-way merge with `files` as resolutions, and a conflict
+	// no file resolves is a 409 listing the paths. Content is text unless
+	// `encoding` is "base64".
 	api("POST /api/v0/repos/{org}/{name}/commits", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
 		repo, err := s.repo(r)
 		if err != nil {
@@ -399,14 +407,17 @@ func (s *Server) Handler() http.Handler {
 		var in struct {
 			Branch  string `json:"branch"`
 			Message string `json:"message"`
+			Base    string `json:"base"`
+			Merge   string `json:"merge"`
 			Files   []struct {
-				Path    string `json:"path"`
-				Content string `json:"content"`
-				Delete  bool   `json:"delete"`
-				Mode    string `json:"mode"`
+				Path     string `json:"path"`
+				Content  string `json:"content"`
+				Encoding string `json:"encoding"`
+				Delete   bool   `json:"delete"`
+				Mode     string `json:"mode"`
 			} `json:"files"`
 		}
-		if err := decode(r, &in); err != nil || len(in.Files) == 0 {
+		if err := decode(r, &in); err != nil || (len(in.Files) == 0 && in.Merge == "") {
 			return fmt.Errorf("%w: files are required", errBadRequest)
 		}
 		if in.Branch == "" {
@@ -425,8 +436,26 @@ func (s *Server) Handler() http.Handler {
 			e := gitx.FileEdit{Path: f.Path, Mode: f.Mode}
 			if !f.Delete {
 				e.Content = []byte(f.Content)
+				if f.Encoding == "base64" {
+					if e.Content, err = base64.StdEncoding.DecodeString(f.Content); err != nil {
+						return fmt.Errorf("%w: %s: bad base64 content", errBadRequest, f.Path)
+					}
+				} else if f.Encoding != "" {
+					return fmt.Errorf("%w: %s: encoding must be base64 or empty", errBadRequest, f.Path)
+				}
 			}
 			edits = append(edits, e)
+		}
+		var base, mergeOID string
+		if in.Base != "" {
+			if base, err = gitx.RevParse(r.Context(), rp, in.Base); err != nil {
+				return fmt.Errorf("%w: base: %v", errBadRequest, gitErr(err))
+			}
+		}
+		if in.Merge != "" {
+			if mergeOID, err = gitx.RevParse(r.Context(), rp, in.Merge); err != nil {
+				return fmt.Errorf("%w: merge: %v", errBadRequest, gitErr(err))
+			}
 		}
 		author := gitx.Author{Name: a.ID, Email: a.ID + "@" + repo.Org + ".invalid"}
 		// Server-side commits to one branch take turns inside this process
@@ -438,16 +467,30 @@ func (s *Server) Handler() http.Handler {
 			return err
 		}
 		defer refLocks.unlock(repo.ID + "|" + ref)
-		var oid, old string
+		var oid, old, parent string
 		var lastErr error
 		for attempt := 0; attempt < 8; attempt++ {
-			parent, err := gitx.RevParse(r.Context(), rp, ref)
+			var err error
+			parent, err = gitx.RevParse(r.Context(), rp, ref)
 			old = parent
-			if err != nil { // new branch: start from the default branch if it exists
+			if err != nil { // new branch: start from base, else from the default branch if it exists
 				old = gitx.ZeroOID
-				parent, _ = gitx.RevParse(r.Context(), rp, "refs/heads/"+repo.DefaultBranch)
+				if base != "" {
+					parent = base
+				} else {
+					parent, _ = gitx.RevParse(r.Context(), rp, "refs/heads/"+repo.DefaultBranch)
+				}
+			} else if base != "" && parent != base {
+				return respondCode(w, http.StatusConflict, nil, map[string]any{"error": errBranchMoved.Error() + ": " + in.Branch + " is at " + parent + ", not " + base, "tip": parent, "base": base})
 			}
-			oid, err = gitx.CommitFiles(r.Context(), rp, parent, edits, in.Message+"\n", author)
+			if mergeOID == "" {
+				oid, err = gitx.CommitFiles(r.Context(), rp, parent, edits, in.Message+"\n", author)
+			} else {
+				oid, err = s.mergeCommit(w, r, rp, parent, mergeOID, edits, in.Message, author)
+				if err == nil && oid == "" {
+					return nil // the 409 (conflicts, nothing to merge) is written
+				}
+			}
 			if err != nil {
 				return err
 			}
@@ -465,8 +508,11 @@ func (s *Server) Handler() http.Handler {
 		if err := s.DB.RecordRefUpdate(r.Context(), repo, ref, old, oid, "api", a); err != nil {
 			return err
 		}
-		return respondCode(w, http.StatusCreated, nil, map[string]string{"commit": oid, "ref": ref})
+		return respondCode(w, http.StatusCreated, nil, map[string]string{"commit": oid, "ref": ref, "parent": parent})
 	})
+	// the workstation client's reads (client_routes.go)
+	api("GET /api/v0/repos/{org}/{name}/archive", s.archive)
+	api("GET /api/v0/repos/{org}/{name}/diff", s.diff)
 
 	// issues
 	api("GET /api/v0/repos/{org}/{name}/issues", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
@@ -1053,4 +1099,45 @@ func serveLog(w http.ResponseWriter, path string) error {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(b)
 	return nil
+}
+
+// mergeCommit builds the merge of other into tip with edits as resolutions
+// and returns the commit, or writes a 409 and returns "" when other is
+// already contained or a conflict is left unresolved.
+func (s *Server) mergeCommit(w http.ResponseWriter, r *http.Request, rp, tip, other string, edits []gitx.FileEdit, message string, author gitx.Author) (string, error) {
+	if tip == "" {
+		return "", fmt.Errorf("%w: merge needs an existing branch", errBadRequest)
+	}
+	if gitx.IsAncestor(r.Context(), rp, other, tip) {
+		return "", respondCode(w, http.StatusConflict, nil, map[string]any{"error": "nothing to merge: " + other + " is already contained", "tip": tip})
+	}
+	tree, conflicts, err := gitx.MergeTree(r.Context(), rp, tip, other)
+	if err != nil && !errors.Is(err, gitx.ErrConflict) {
+		return "", err
+	}
+	var conflicted []string
+	if errors.Is(err, gitx.ErrConflict) {
+		for _, p := range strings.Split(strings.TrimSpace(conflicts), "\n") {
+			if p != "" {
+				conflicted = append(conflicted, p)
+			}
+		}
+		resolved := map[string]bool{}
+		for _, e := range edits {
+			resolved[e.Path] = true
+		}
+		var unresolved []string
+		for _, p := range conflicted {
+			if !resolved[p] {
+				unresolved = append(unresolved, p)
+			}
+		}
+		if len(unresolved) > 0 {
+			return "", respondCode(w, http.StatusConflict, nil, map[string]any{"error": fmt.Sprintf("merge conflicts in %d path(s)", len(unresolved)), "conflicts": conflicted, "unresolved": unresolved, "tip": tip, "merge": other})
+		}
+	}
+	if message == "" || message == "Update via API" {
+		message = "Merge " + other[:8] + " into the change"
+	}
+	return gitx.CommitTreeEdits(r.Context(), rp, tree, []string{tip, other}, edits, message+"\n", author)
 }

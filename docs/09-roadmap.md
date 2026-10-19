@@ -16,6 +16,12 @@ One Go binary (`ore`), SQLite, bare git repositories, Docker for isolation. Impl
 
 **Gate (met):** `ore demo` passes on a machine with Docker in ~15 s; every package has tests, including a real push over HTTP and the full loop. Known v0 limits: single admin token (no users yet), HTTP only (no SSH), no secrets, pipelines have network access, host executor is for trusted use only, no UI for diffs beyond a basic view.
 
+## v0.2 — Working without git (ADR 0016; client landed 2026-10-19)
+
+The developer stops using git: the `ore` binary is the workstation client. `ore open org/repo` materializes the repository's active area (the paths the pipeline declares) from a streamed server-side archive, sparse by default so a 100k-file repository opens in seconds; `ore save` records the working tree's edits as a server-side commit and a patch set of a change, with no local history and an offline queue; `ore sync` refreshes the tree and merges the default branch into the change on the server, writing conflicts side by side (or inline with markers); `ore land` asks for landing under the repository's autonomy level; `ore status` shows the ledger's view. Branches, remotes, rebases and staging never reach the user. Delivered: `docs/changes/client.md`. Still to do for v0.2: the per-organization "git transport off" switch; the "last day of git" checklist in `docs/10`; `ore open` of the 100M-line repository under 5 s (measured: 10,000 files in 1.1 s, sparse open of a 2,000-file area in 0.1 s); `ore revert`.
+
+**Gate:** a team works a week on Ore with no git client installed; the measurements in `docs/scale` include `ore open`, `ore save` and `ore land` latencies.
+
 ## v0.x — Weekly releases (months 1–3)
 
 - SSH transport; LFS to object storage; secret scanning on push; geometric repack maintenance.
