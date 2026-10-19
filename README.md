@@ -38,7 +38,7 @@ ore issue create acme/app "Fix the flaky retry in the uploader"
 ore agent run acme/app --issue 1 --wait
 ```
 
-Claude Code must be signed in on the machine running `ore serve` (run `claude` once interactively); any other agent is one command away through `ORE_AGENT_CMD`, which receives the prompt in `ORE_PROMPT` and runs inside a checkout on the agent's branch.
+Claude Code authenticates with `ANTHROPIC_API_KEY` in the server's environment (agent runs get their own `CLAUDE_CONFIG_DIR`, so a developer's interactive login on the same machine is never used by mistake) or, on a solo machine, with a `claude` sign-in; any other agent is one command away through `ORE_AGENT_CMD`, which receives the prompt in `ORE_PROMPT` and runs inside a checkout on the agent's branch.
 
 Autonomy levels per repository: L2 opens the change and stops (default), L3 lands it when the pipeline is green, L4 also deploys to production. The ledger (`ore events`) records every step with the actor and provenance.
 

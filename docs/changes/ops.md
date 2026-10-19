@@ -40,7 +40,7 @@ export ORE_DB_URL='postgres://ore:ore@localhost:5432/ore?sslmode=disable'
 ore doctor && ore migrate apply && ore serve
 ```
 
-Or `COMPOSE_PROFILES=postgres ORE_DB_URL=postgres://ore:ore@postgres:5432/ore?sslmode=disable docker compose -f deploy/solo/compose.yaml up`. Wrong credentials fail fast with `postgres postgres://ore:REDACTED@...: authentication failed, check the user and password in ORE_DB_URL`. The pool is capped at 16 connections.
+Or `COMPOSE_PROFILES=postgres ORE_DB_URL=postgres://ore:ore@postgres:5432/ore?sslmode=disable docker compose -f deploy/solo/compose.yaml up`. Wrong credentials fail fast with `postgres postgres://ore:REDACTED@...: authentication failed, check the user and password in ORE_DB_URL`. The pool is sized for request concurrency (4 × CPUs, between 8 and 64; `ORE_DB_MAX_CONNS` overrides), since a request holds a connection only for its own statements.
 
 ## Backup and restore
 

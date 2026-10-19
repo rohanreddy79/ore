@@ -16,6 +16,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,13 +59,33 @@ type Request struct {
 	Prompt string // used when Issue is nil, or appended to the issue
 }
 
+// agentSlots bounds concurrent agent runs per process; the rest wait in the
+// running state at the first step. ORE_AGENT_CONCURRENCY overrides the
+// default of half the CPU count.
+var agentSlots = make(chan struct{}, agentConcurrency())
+
+func agentConcurrency() int {
+	if v, err := strconv.Atoi(os.Getenv("ORE_AGENT_CONCURRENCY")); err == nil && v > 0 {
+		return v
+	}
+	n := runtime.NumCPU() / 2
+	if n < 2 {
+		n = 2
+	}
+	return n
+}
+
 // Start records the run and executes it in the background.
 func (l *Loop) Start(ctx context.Context, repo ledger.Repo, req Request, actor ledger.Actor) (ledger.AgentRun, error) {
 	run, err := l.begin(ctx, repo, req, actor)
 	if err != nil {
 		return run, err
 	}
-	go l.execute(context.Background(), repo, req, &run, actor)
+	go func() {
+		agentSlots <- struct{}{}
+		defer func() { <-agentSlots }()
+		l.execute(context.Background(), repo, req, &run, actor)
+	}()
 	return run, nil
 }
 
@@ -200,7 +222,10 @@ func (l *Loop) execute(ctx context.Context, repo ledger.Repo, req Request, run *
 		l.finish(ctx, repo, run, "failed", "adapter: "+err.Error(), lg, actor)
 		return
 	}
-	if _, err := gitx.Run(ctx, work, nil, "add", "-A"); err != nil {
+	// --sparse: files the agent created outside the sparse cone are new,
+	// untracked paths; git refuses them without it (and they are the common
+	// case: a new test, a new package next to the active area).
+	if _, err := gitx.Run(ctx, work, nil, "add", "-A", "--sparse"); err != nil {
 		l.finish(ctx, repo, run, "failed", err.Error(), lg, actor)
 		return
 	}
@@ -418,6 +443,9 @@ func (l *Loop) runAdapter(ctx context.Context, work, prompt, verifyCmd string, r
 	if req.Issue != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("ORE_ISSUE_NUMBER=%d", req.Issue.Number), "ORE_ISSUE_TITLE="+req.Issue.Title, "ORE_ISSUE_BODY="+req.Issue.Body)
 	}
+	if dir := l.claudeConfigDir(); dir != "" {
+		cmd.Env = append(cmd.Env, "CLAUDE_CONFIG_DIR="+dir)
+	}
 	cmd.Env = append(cmd.Env, extraEnv...)
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
@@ -430,6 +458,23 @@ func (l *Loop) runAdapter(ctx context.Context, work, prompt, verifyCmd string, r
 		return fmt.Errorf("timed out after %s", timeout)
 	}
 	return err
+}
+
+// claudeConfigDir gives Claude Code its own configuration directory when the
+// server authenticates agents with ANTHROPIC_API_KEY: the CLI prefers a
+// stored interactive login over the key, so a developer's (possibly expired)
+// login on the same machine would otherwise override the server's
+// credentials. The directory lives beside the logs, never inside a
+// workspace, so it is not committed. An explicit CLAUDE_CONFIG_DIR wins.
+func (l *Loop) claudeConfigDir() string {
+	if os.Getenv("ANTHROPIC_API_KEY") == "" || os.Getenv("CLAUDE_CONFIG_DIR") != "" || l.LogsDir == "" {
+		return ""
+	}
+	dir := filepath.Join(filepath.Dir(filepath.Clean(l.LogsDir)), "claude-config")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return ""
+	}
+	return dir
 }
 
 func indent(s string) string {

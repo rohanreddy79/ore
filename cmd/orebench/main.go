@@ -183,14 +183,14 @@ func (c *client) ensureRepo(ctx context.Context, org, name string, level int) er
 
 func errKind(err error) string {
 	s := err.Error()
-	if i := strings.Index(s, "HTTP "); i >= 0 && len(s) > i+8 {
-		return s[i : i+8]
-	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "timeout"
 	}
-	if len(s) > 60 {
-		s = s[:60]
+	if i := strings.Index(s, "HTTP "); i >= 0 {
+		s = s[i:]
+	}
+	if len(s) > 200 {
+		s = s[:200]
 	}
 	return s
 }
@@ -371,6 +371,7 @@ func apiLoad(args []string) error {
 	conc := fs.Int("concurrency", 50, "concurrent clients")
 	dur := fs.Duration("duration", 30*time.Second, "duration")
 	mix := fs.String("mix", "tree,file,log,events,changes,issues", "comma-separated request kinds")
+	ramp := fs.Duration("ramp", 0, "spread client start-up over this long (0 = all at once, which exceeds a 128-entry kernel accept backlog past ~128 clients)")
 	fs.Parse(args)
 	if *token == "" {
 		return errors.New("--token is required")
@@ -404,6 +405,13 @@ func apiLoad(args []string) error {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
+			if *ramp > 0 && *conc > 1 {
+				select {
+				case <-time.After(*ramp * time.Duration(i) / time.Duration(*conc-1)):
+				case <-ctx.Done():
+					return
+				}
+			}
 			rng := rand.New(rand.NewSource(int64(i)))
 			for ctx.Err() == nil {
 				k := kinds[rng.Intn(len(kinds))]
@@ -411,6 +419,10 @@ func apiLoad(args []string) error {
 				switch k {
 				case "tree":
 					path = base + "/tree"
+				case "treetop":
+					path = base + "/tree?depth=1"
+				case "treedir":
+					path = base + "/tree?depth=1&path=pkg000"
 				case "file", "blob":
 					if len(files) == 0 {
 						continue

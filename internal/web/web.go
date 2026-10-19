@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/orevcs/ore/internal/agent"
@@ -165,11 +166,15 @@ func (s *Server) Handler() http.Handler {
 				switch {
 				case errors.Is(err, ledger.ErrNotFound):
 					code = http.StatusNotFound
-				case errors.Is(err, review.ErrNothingToMerge), isConflict(err), errors.Is(err, errBadRequest), errors.Is(err, errConflict):
+				case errors.Is(err, review.ErrNothingToMerge), isConflict(err), errors.Is(err, errBadRequest), errors.Is(err, errConflict), ledger.IsUniqueViolation(err):
 					code = http.StatusConflict
 					if errors.Is(err, errBadRequest) {
 						code = http.StatusBadRequest
 					}
+				}
+				if code >= 500 && s.Log != nil {
+					// The access log has the status; this line has the cause.
+					s.Log.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err.Error())
 				}
 				jsonErr(w, code, err)
 			}
@@ -272,13 +277,27 @@ func (s *Server) Handler() http.Handler {
 			return fmt.Errorf("%w: bad path", errBadRequest)
 		}
 		recursive := q.Get("depth") != "1"
-		files, err := gitx.ListTreeAt(r.Context(), s.repoPath(repo), ref, sub, recursive)
+		// Listings are immutable per commit: resolve the ref once and serve
+		// repeats from a bounded cache instead of re-running ls-tree over
+		// 100k entries for every request.
+		oid, err := gitx.ResolveRef(r.Context(), s.repoPath(repo), ref)
 		if err != nil {
 			return gitErr(err)
 		}
-		if files == nil {
-			files = []string{}
+		v, err := treeCache.get(repo.ID+"|"+oid+"|"+sub+"|"+strconv.FormatBool(recursive), func() (any, int, error) {
+			files, err := gitx.ListTreeAt(r.Context(), s.repoPath(repo), oid, sub, recursive)
+			if err != nil {
+				return nil, 0, err
+			}
+			if files == nil {
+				files = []string{}
+			}
+			return files, pathsSize(files), nil
+		})
+		if err != nil {
+			return gitErr(err)
 		}
+		files := v.([]string)
 		limit, offset := atoi(q.Get("limit")), atoi(q.Get("offset"))
 		if limit <= 0 {
 			limit = 20000
@@ -299,7 +318,18 @@ func (s *Server) Handler() http.Handler {
 		}
 		w.Header().Set("X-Ore-Tree-Total", strconv.Itoa(total))
 		w.Header().Set("X-Ore-Tree-Truncated", strconv.FormatBool(end < total || offset > 0))
-		return respond(w, nil, files[offset:end])
+		// A page of a 100k-path listing is hundreds of kilobytes of JSON;
+		// encode each page once per commit and serve the bytes.
+		page, err := readCache.get("treejson|"+repo.ID+"|"+oid+"|"+sub+"|"+strconv.FormatBool(recursive)+"|"+strconv.Itoa(offset)+"|"+strconv.Itoa(end), func() (any, int, error) {
+			b, err := json.Marshal(files[offset:end])
+			return b, len(b), err
+		})
+		if err != nil {
+			return err
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(page.([]byte))
+		return nil
 	})
 	api("GET /api/v0/repos/{org}/{name}/file", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
 		repo, err := s.repo(r)
@@ -310,12 +340,26 @@ func (s *Server) Handler() http.Handler {
 		if ref == "" {
 			ref = "refs/heads/" + repo.DefaultBranch
 		}
-		b, err := gitx.ReadFile(r.Context(), s.repoPath(repo), ref, r.URL.Query().Get("path"))
+		file := r.URL.Query().Get("path")
+		oid, err := gitx.ResolveRef(r.Context(), s.repoPath(repo), ref)
+		if err != nil {
+			return gitErr(err)
+		}
+		v, err := readCache.get("file|"+repo.ID+"|"+oid+"|"+file, func() (any, int, error) {
+			b, err := gitx.ReadFile(r.Context(), s.repoPath(repo), oid, file)
+			if err != nil {
+				return nil, 0, err
+			}
+			if len(b) > maxCachedBlob {
+				return b, -1, nil
+			}
+			return b, len(b), nil
+		})
 		if err != nil {
 			return gitErr(err)
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(b)
+		w.Write(v.([]byte))
 		return nil
 	})
 	api("GET /api/v0/repos/{org}/{name}/log", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
@@ -327,11 +371,24 @@ func (s *Server) Handler() http.Handler {
 		if ref == "" {
 			ref = "refs/heads/" + repo.DefaultBranch
 		}
-		entries, err := gitx.Log(r.Context(), s.repoPath(repo), ref, 50)
-		if entries == nil && err == nil {
-			entries = []gitx.LogEntry{}
+		oid, err := gitx.ResolveRef(r.Context(), s.repoPath(repo), ref)
+		if err != nil {
+			return gitErr(err)
 		}
-		return respond(w, gitErr(err), entries)
+		v, err := readCache.get("log|"+repo.ID+"|"+oid, func() (any, int, error) {
+			entries, err := gitx.Log(r.Context(), s.repoPath(repo), oid, 50)
+			if err != nil {
+				return nil, 0, err
+			}
+			if entries == nil {
+				entries = []gitx.LogEntry{}
+			}
+			return entries, len(entries) * 256, nil
+		})
+		if err != nil {
+			return gitErr(err)
+		}
+		return respond(w, nil, v)
 	})
 	// server-side commit through the API: no clone, no working copy (ADR 0014)
 	api("POST /api/v0/repos/{org}/{name}/commits", func(w http.ResponseWriter, r *http.Request, a ledger.Actor) error {
@@ -372,8 +429,15 @@ func (s *Server) Handler() http.Handler {
 			edits = append(edits, e)
 		}
 		author := gitx.Author{Name: a.ID, Email: a.ID + "@" + repo.Org + ".invalid"}
-		// Commits are lock-free: build on the current tip and publish with
-		// compare-and-swap; if the tip moved underneath, rebuild on the new tip.
+		// Server-side commits to one branch take turns inside this process
+		// (a lost compare-and-swap costs three git processes and a retry, so
+		// fifty writers racing is slower and less fair than fifty queueing);
+		// the compare-and-swap below still guards against pushes and other
+		// processes moving the branch.
+		if err := refLocks.lock(r.Context(), repo.ID+"|"+ref); err != nil {
+			return err
+		}
+		defer refLocks.unlock(repo.ID + "|" + ref)
 		var oid, old string
 		var lastErr error
 		for attempt := 0; attempt < 8; attempt++ {
@@ -761,6 +825,151 @@ var errBadRequest = errors.New("bad request")
 // errConflict is answered with 409.
 var errConflict = errors.New("conflict")
 
+// treeCache memoizes tree listings keyed by (repo, commit, path, mode); a
+// commit's tree never changes, so entries are evicted only for space.
+var treeCache = newMemCache(readCacheBytes())
+
+// refLocks serializes server-side writers per branch within this process.
+var refLocks = &keyedLocks{m: map[string]chan struct{}{}}
+
+type keyedLocks struct {
+	mu sync.Mutex
+	m  map[string]chan struct{}
+}
+
+// lock waits for the key or the context, whichever comes first.
+func (k *keyedLocks) lock(ctx context.Context, key string) error {
+	k.mu.Lock()
+	ch, ok := k.m[key]
+	if !ok {
+		ch = make(chan struct{}, 1)
+		k.m[key] = ch
+	}
+	k.mu.Unlock()
+	select {
+	case ch <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (k *keyedLocks) unlock(key string) {
+	k.mu.Lock()
+	ch := k.m[key]
+	k.mu.Unlock()
+	<-ch
+}
+
+// readCache memoizes git-backed reads that are immutable per commit (the log
+// below a commit, a file at a commit) so a hot branch is served from memory
+// once its ref is resolved; ORE_READ_CACHE_MB bounds it (default 256).
+var readCache = newMemCache(readCacheBytes())
+
+func readCacheBytes() int {
+	if v, err := strconv.Atoi(os.Getenv("ORE_READ_CACHE_MB")); err == nil && v >= 0 {
+		return v << 20
+	}
+	return 256 << 20
+}
+
+// maxCachedBlob keeps single huge files from evicting everything else.
+const maxCachedBlob = 4 << 20
+
+type memCache struct {
+	mu       sync.Mutex
+	max      int
+	size     int
+	order    []string
+	entries  map[string]memEntry
+	inflight map[string]*memCall
+}
+
+type memEntry struct {
+	v    any
+	size int
+}
+
+// memCall is one in-flight load that concurrent requests for the same key
+// wait on instead of each spawning their own git process (singleflight).
+type memCall struct {
+	done chan struct{}
+	v    any
+	err  error
+}
+
+func newMemCache(maxBytes int) *memCache {
+	return &memCache{max: maxBytes, entries: map[string]memEntry{}, inflight: map[string]*memCall{}}
+}
+
+// get returns the cached value or loads it. Concurrent callers for one key
+// share a single load; if that load fails (for example because the leader's
+// request was cancelled) each waiter loads on its own. A loader that reports
+// a negative size opts out of caching for that value.
+func (c *memCache) get(key string, load func() (v any, size int, err error)) (any, error) {
+	for {
+		c.mu.Lock()
+		if e, ok := c.entries[key]; ok {
+			c.mu.Unlock()
+			return e.v, nil
+		}
+		if cl, ok := c.inflight[key]; ok {
+			c.mu.Unlock()
+			<-cl.done
+			if cl.err == nil {
+				return cl.v, nil
+			}
+			break // the leader failed: load for ourselves
+		}
+		cl := &memCall{done: make(chan struct{})}
+		c.inflight[key] = cl
+		c.mu.Unlock()
+		v, size, err := load()
+		c.mu.Lock()
+		delete(c.inflight, key)
+		if err == nil && size >= 0 && size <= c.max {
+			c.store(key, v, size)
+		}
+		c.mu.Unlock()
+		cl.v, cl.err = v, err
+		close(cl.done)
+		return v, err
+	}
+	v, size, err := load()
+	if err == nil && size >= 0 && size <= c.max {
+		c.mu.Lock()
+		c.store(key, v, size)
+		c.mu.Unlock()
+	}
+	return v, err
+}
+
+// store inserts under c.mu and evicts the oldest entries past the budget.
+func (c *memCache) store(key string, v any, size int) {
+	if _, ok := c.entries[key]; ok {
+		return
+	}
+	size += len(key) + 64
+	c.entries[key] = memEntry{v: v, size: size}
+	c.order = append(c.order, key)
+	c.size += size
+	for c.size > c.max && len(c.order) > 1 {
+		oldest := c.order[0]
+		c.order = c.order[1:]
+		c.size -= c.entries[oldest].size
+		delete(c.entries, oldest)
+	}
+}
+
+// pathsSize estimates a listing's footprint for the cache budget.
+func pathsSize(files []string) int {
+	n := 24 * len(files)
+	for _, f := range files {
+		n += len(f)
+	}
+	return n
+}
+
 // gitErr maps git's "unknown revision" and "not a valid object name" failures
 // (a ref or object that does not exist) to ErrNotFound so the API answers 404
 // instead of 500 for an empty repository or a bad ref.
@@ -772,7 +981,7 @@ func gitErr(err error) error {
 	if strings.Contains(msg, "unknown revision") || strings.Contains(msg, "Not a valid object name") ||
 		strings.Contains(msg, "not a valid object name") || strings.Contains(msg, "bad revision") ||
 		strings.Contains(msg, "does not exist in") || strings.Contains(msg, "Not a valid commit name") ||
-		strings.Contains(msg, "exists on disk, but not in") {
+		strings.Contains(msg, "exists on disk, but not in") || strings.Contains(msg, "Needed a single revision") {
 		return fmt.Errorf("%w: %s", ledger.ErrNotFound, strings.TrimSpace(strings.SplitN(msg, ":", 2)[len(strings.SplitN(msg, ":", 2))-1]))
 	}
 	return err

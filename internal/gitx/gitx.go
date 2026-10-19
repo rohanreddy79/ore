@@ -7,6 +7,7 @@
 package gitx
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -14,6 +15,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -32,8 +35,44 @@ type Author struct {
 	Email string
 }
 
+// gate bounds the number of git subprocesses running at once so a burst of
+// API reads cannot fork thousands of processes; waiting callers queue in
+// order. ORE_GIT_CONCURRENCY overrides the default of 4×CPUs (minimum 8).
+var gate = newGate()
+
+type procGate struct{ slots chan struct{} }
+
+func newGate() *procGate {
+	n := runtime.NumCPU() * 4
+	if n < 8 {
+		n = 8
+	}
+	if v, err := strconv.Atoi(os.Getenv("ORE_GIT_CONCURRENCY")); err == nil && v > 0 {
+		n = v
+	}
+	return &procGate{slots: make(chan struct{}, n)}
+}
+
+func (g *procGate) acquire(ctx context.Context) error {
+	select {
+	case g.slots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (g *procGate) release() { <-g.slots }
+
+// Concurrency reports the gate's size (for diagnostics and tests).
+func Concurrency() int { return cap(gate.slots) }
+
 // Run executes git in dir with env and returns stdout. stderr is folded into the error.
 func Run(ctx context.Context, dir string, env []string, args ...string) (string, error) {
+	if err := gate.acquire(ctx); err != nil {
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	defer gate.release()
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
@@ -48,6 +87,10 @@ func Run(ctx context.Context, dir string, env []string, args ...string) (string,
 
 // RunStdin is Run with input on stdin.
 func RunStdin(ctx context.Context, dir string, env []string, stdin []byte, args ...string) (string, error) {
+	if err := gate.acquire(ctx); err != nil {
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	defer gate.release()
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
@@ -107,6 +150,84 @@ func InitBare(ctx context.Context, path, defaultBranch string) error {
 
 // Refs returns refname -> object id for all refs.
 func Refs(ctx context.Context, path string) (map[string]string, error) {
+	if refs, ok := readRefsFromDisk(path); ok {
+		return refs, nil
+	}
+	return refsFromGit(ctx, path)
+}
+
+// readRefsFromDisk lists refs the way for-each-ref does (every ref under
+// refs/, annotated tags by their tag object) from packed-refs and the loose
+// ref files, loose winning, without spawning git. It declines (ok=false) for
+// repositories it does not understand: a reftable backend, or a refs
+// directory it cannot read.
+func readRefsFromDisk(path string) (map[string]string, bool) {
+	if _, err := os.Stat(filepath.Join(path, "reftable")); err == nil {
+		return nil, false
+	}
+	refs := map[string]string{}
+	if f, err := os.Open(filepath.Join(path, "packed-refs")); err == nil {
+		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 64<<10), 1<<20)
+		for sc.Scan() {
+			line := sc.Text()
+			if line == "" || line[0] == '#' || line[0] == '^' {
+				continue
+			}
+			if i := strings.IndexByte(line, ' '); i > 0 && isHexOID(line[:i]) {
+				refs[line[i+1:]] = line[:i]
+			}
+		}
+		f.Close()
+	}
+	root := filepath.Join(path, "refs")
+	if _, err := os.Stat(root); err != nil {
+		return nil, false
+	}
+	symbolic := map[string]string{} // ref -> target, resolved once all refs are known
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || strings.HasSuffix(p, ".lock") {
+			return nil
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(path, p)
+		name := filepath.ToSlash(rel)
+		switch v := strings.TrimSpace(string(b)); {
+		case isHexOID(v):
+			refs[name] = v
+		case strings.HasPrefix(v, "ref: "):
+			symbolic[name] = strings.TrimSpace(strings.TrimPrefix(v, "ref: "))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, false
+	}
+	// for-each-ref lists a symbolic ref at its target's object; a dangling one
+	// is left out, as git leaves it out.
+	for name, target := range symbolic {
+		for hop := 0; hop < 8; hop++ {
+			if oid, ok := refs[target]; ok {
+				refs[name] = oid
+				break
+			}
+			next, ok := symbolic[target]
+			if !ok {
+				break
+			}
+			target = next
+		}
+	}
+	return refs, true
+}
+
+func refsFromGit(ctx context.Context, path string) (map[string]string, error) {
 	out, err := Run(ctx, path, nil, "for-each-ref", "--format=%(refname) %(objectname)")
 	if err != nil {
 		return nil, err
@@ -156,6 +277,70 @@ func RevParse(ctx context.Context, path, rev string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// ResolveRef returns the commit a ref points at without spawning git when it
+// can: a branch (refs/heads/...) is read from its loose ref file or from
+// packed-refs, which update-ref and receive-pack rewrite atomically, so the
+// answer is always current. Anything else (tags, HEAD, abbreviations, oids,
+// reftable repositories, symbolic refs) falls back to RevParse. Read handlers
+// resolve once and key their caches by the commit, so a hot branch costs no
+// process at all.
+func ResolveRef(ctx context.Context, path, rev string) (string, error) {
+	if strings.HasPrefix(rev, "refs/heads/") && !strings.Contains(rev, "..") {
+		if oid, ok := readLooseRef(path, rev); ok {
+			return oid, nil
+		}
+		if oid, ok := readPackedRef(path, rev); ok {
+			return oid, nil
+		}
+	}
+	return RevParse(ctx, path, rev)
+}
+
+func readLooseRef(path, ref string) (string, bool) {
+	b, err := os.ReadFile(filepath.Join(path, filepath.FromSlash(ref)))
+	if err != nil {
+		return "", false
+	}
+	s := strings.TrimSpace(string(b))
+	if !isHexOID(s) {
+		return "", false // symbolic ref or corruption: let git decide
+	}
+	return s, true
+}
+
+func readPackedRef(path, ref string) (string, bool) {
+	f, err := os.Open(filepath.Join(path, "packed-refs"))
+	if err != nil {
+		return "", false
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 64<<10), 1<<20)
+	for sc.Scan() {
+		line := sc.Text()
+		if line == "" || line[0] == '#' || line[0] == '^' {
+			continue
+		}
+		if i := strings.IndexByte(line, ' '); i > 0 && line[i+1:] == ref && isHexOID(line[:i]) {
+			return line[:i], true
+		}
+	}
+	return "", false
+}
+
+func isHexOID(s string) bool {
+	if len(s) != 40 && len(s) != 64 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // MergeBase returns the best common ancestor.
 func MergeBase(ctx context.Context, path, a, b string) (string, error) {
 	out, err := Run(ctx, path, nil, "merge-base", a, b)
@@ -175,6 +360,10 @@ func IsAncestor(ctx context.Context, path, a, b string) bool {
 // working copy and returns the resulting tree id. ErrConflict carries the
 // conflicting paths in the returned string.
 func MergeTree(ctx context.Context, path, base, head string) (tree string, conflicts string, err error) {
+	if err := gate.acquire(ctx); err != nil {
+		return "", "", err
+	}
+	defer gate.release()
 	cmd := exec.CommandContext(ctx, "git", "merge-tree", "--write-tree", "--name-only", "--no-messages", base, head)
 	cmd.Dir = path
 	var out, errb bytes.Buffer
@@ -299,6 +488,10 @@ func ArchivePaths(ctx context.Context, path, rev, dest string, paths []string) e
 		args = append(args, "--")
 		args = append(args, paths...)
 	}
+	if err := gate.acquire(ctx); err != nil {
+		return err
+	}
+	defer gate.release()
 	git := exec.CommandContext(ctx, "git", args...)
 	git.Dir = path
 	tar := exec.CommandContext(ctx, "tar", "-x", "-C", dest)

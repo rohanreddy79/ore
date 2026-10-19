@@ -2,3 +2,15 @@ server pid=26944 url=http://127.0.0.1:59855 data=/private/tmp/claude-501/-Users-
 == bin/orebench push --url $ORE_URL --token $ORE_TOKEN --dir /private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/repo1m --repos 10 --concurrency 10
    (2s)
 == bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0000 --concurrency 200 --duration 30s & bin/orebench commits --url $ORE_URL --token $ORE_TOKEN --repo bench/r0001 --concurrency 50 --count 500 & bin/orebench pipelines --url $ORE_URL --token $ORE_TOKEN --repo bench/r0002 --concurrency 20 --count 40 --timeout 15m & bin/orebench agents --url $ORE_URL --token $ORE_TOKEN --repo bench/r0003 --concurrency 10 --count 20 --timeout 15m & wait
+   (206s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0004 --concurrency 300 --duration 20s
+   (21s)
+   1 time=2026-10-19T04:06:12.880-04:00 level=ERROR msg=request request_id=req_000038AK69G7N4W7TBNH method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=22 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.868-04:00 level=ERROR msg=request request_id=req_000038AK69G7NSA9MKDE method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=10 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.867-04:00 level=ERROR msg=request request_id=req_000038AK69G7N7NG3MG6 method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=9 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.867-04:00 level=ERROR msg=request request_id=req_000038AK69G7MZN713QW method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=9 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.865-04:00 level=ERROR msg=request request_id=req_000038AK69G7NN0YX2V5 method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=7 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.865-04:00 level=ERROR msg=request request_id=req_000038AK69G7M8P0KNYB method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=7 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.864-04:00 level=ERROR msg=request request_id=req_000038AK69G7MNQPEDWT method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=6 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.862-04:00 level=ERROR msg=request request_id=req_000038AK69G7J93HE31A method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=4 remote=127.0.0.1
+   1 time=2026-10-19T04:06:12.859-04:00 level=ERROR msg=request request_id=req_000038AK69G7JH06VV5P method=POST path=/api/v0/orgs status=500 bytes=86 duration_ms=1 remote=127.0.0.1

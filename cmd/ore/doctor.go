@@ -12,6 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -112,6 +114,18 @@ func doctor(ctx context.Context, cfg config, env doctorEnv) report {
 			r.add("docker", "warn", "docker CLI present but the engine does not answer: pipelines fall back to --executor host, deployments are recorded only")
 		} else {
 			r.add("docker", "ok", "engine "+strings.TrimSpace(string(out)))
+		}
+	}
+
+	// Accept backlog: every connection past the kernel's listen queue is
+	// reset or dropped before the server ever sees it. Linux defaults to 4096
+	// since 5.4 and macOS to 128; a burst of a few hundred fresh clients (a
+	// load balancer draining, a fleet of agents starting) needs more.
+	if n, ok := listenBacklog(); ok {
+		if n < 1024 {
+			r.add("backlog", "warn", fmt.Sprintf("kernel accept backlog is %d; set net.core.somaxconn=4096 (sysctl, or docker run --sysctl) so connection bursts are queued, not reset", n))
+		} else {
+			r.add("backlog", "ok", fmt.Sprintf("kernel accept backlog %d", n))
 		}
 	}
 
@@ -222,4 +236,25 @@ func diskFree(path string) (free, total uint64, err error) {
 			return 0, 0, err
 		}
 	}
+}
+
+// listenBacklog reads the kernel's maximum accept queue length.
+func listenBacklog() (int, bool) {
+	switch runtime.GOOS {
+	case "linux":
+		b, err := os.ReadFile("/proc/sys/net/core/somaxconn")
+		if err != nil {
+			return 0, false
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		return n, err == nil
+	case "darwin", "freebsd":
+		out, err := exec.Command("sysctl", "-n", "kern.ipc.somaxconn").Output()
+		if err != nil {
+			return 0, false
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+		return n, err == nil
+	}
+	return 0, false
 }

@@ -1,0 +1,19 @@
+{"bytes":0,"concurrency":10,"elapsed_s":2.29,"error_kinds":{},"errors":0,"max_ms":2154.84,"ok":10,"p50_ms":2057.87,"p95_ms":2148.8,"p99_ms":2148.8,"repos":10,"rps":4.36,"scenario":"push"}
+{"bytes":325395002,"concurrency":200,"elapsed_s":30.01,"error_kinds":{},"errors":0,"max_ms":5817.15,"ok":4731,"p50_ms":640.84,"p95_ms":3096.47,"p99_ms":3672.39,"requests":4931,"rps":157.62,"scenario":"api"}
+{"bytes":54227712,"elapsed_s":30.01,"error_kinds":{},"errors":0,"max_ms":1244.7,"ok":789,"p50_ms":132.84,"p95_ms":594.07,"p99_ms":996.57,"rps":26.28,"scenario":"api.events"}
+{"bytes":4130,"elapsed_s":30.01,"error_kinds":{},"errors":0,"max_ms":1470.46,"ok":826,"p50_ms":113.89,"p95_ms":710.4,"p99_ms":1094.89,"rps":27.51,"scenario":"api.changes"}
+{"bytes":4035,"elapsed_s":30.01,"error_kinds":{},"errors":0,"max_ms":1705.44,"ok":807,"p50_ms":135.34,"p95_ms":794.59,"p99_ms":1046.06,"rps":26.88,"scenario":"api.issues"}
+{"bytes":630300,"elapsed_s":30.01,"error_kinds":{},"errors":0,"max_ms":5793.19,"ok":764,"p50_ms":2132.4,"p95_ms":3156.61,"p99_ms":3575.14,"rps":25.45,"scenario":"api.log"}
+{"bytes":1708089,"elapsed_s":30.01,"error_kinds":{},"errors":0,"max_ms":5817.16,"ok":777,"p50_ms":2168.71,"p95_ms":3150.74,"p99_ms":3552.29,"rps":25.88,"scenario":"api.file"}
+{"bytes":268820736,"elapsed_s":30.01,"error_kinds":{},"errors":0,"max_ms":5400.68,"ok":768,"p50_ms":2435.37,"p95_ms":3642.1,"p99_ms":3896.29,"rps":25.58,"scenario":"api.tree"}
+{"bytes":46500,"concurrency":50,"count":500,"elapsed_s":61.22,"error_kinds":{},"errors":0,"max_ms":27769.9,"ok":500,"p50_ms":3583.47,"p95_ms":16691.08,"p99_ms":23326.3,"rps":8.16,"scenario":"commits"}
+{"bytes":0,"concurrency":20,"count":40,"elapsed_s":172.16,"error_kinds":{},"errors":0,"max_ms":93429.66,"ok":40,"p50_ms":85297.85,"p95_ms":92893.88,"p99_ms":93112.59,"rps":0.23,"scenario":"pipelines","statuses":{"succeeded":40}}
+{"bytes":0,"concurrency":10,"count":20,"elapsed_s":256.57,"error_kinds":{"failed: open change: UNIQUE constraint failed: ERROR: duplicate key value viol":1,"issue: HTTP 500":5},"errors":6,"max_ms":172315.14,"ok":14,"p50_ms":163806.24,"p95_ms":164546.68,"p99_ms":164546.68,"rps":0.05,"scenario":"agents","statuses":{"blocked":14,"failed":1}}
+{"bytes":271224696,"concurrency":300,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":8258.72,"ok":4172,"p50_ms":441.64,"p95_ms":3892.5,"p99_ms":4337.64,"requests":4472,"rps":208.52,"scenario":"api"}
+{"bytes":1470789,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":7779.89,"ok":669,"p50_ms":2555.64,"p95_ms":4022.12,"p99_ms":4801.51,"rps":33.43,"scenario":"api.file"}
+{"bytes":3630,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":1597.78,"ok":726,"p50_ms":57.71,"p95_ms":838.5,"p99_ms":1286.08,"rps":36.28,"scenario":"api.issues"}
+{"bytes":214916578,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":6805.42,"ok":614,"p50_ms":2650.35,"p95_ms":4271.59,"p99_ms":4834.23,"rps":30.68,"scenario":"api.tree"}
+{"bytes":54297664,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":1703.1,"ok":736,"p50_ms":73.38,"p95_ms":607.11,"p99_ms":971.86,"rps":36.78,"scenario":"api.events"}
+{"bytes":532125,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":8258.72,"ok":645,"p50_ms":2588.72,"p95_ms":4059.24,"p99_ms":5014.33,"rps":32.23,"scenario":"api.log"}
+{"bytes":3910,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":2044.62,"ok":782,"p50_ms":71.63,"p95_ms":878.42,"p99_ms":1413.75,"rps":39.08,"scenario":"api.changes"}
+{"scenario":"server","peak_rss_mb":111,"peak_fds":1848,"errors_in_log":14,"panics":0}

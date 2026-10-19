@@ -1,0 +1,13 @@
+server pid=48904 url=http://127.0.0.1:50519 data=/private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/data-r6-postgres executor=host db=postgres://ore:ore@127.0.0.1:50518/ore?sslmode=disable
+== bin/orebench push --url $ORE_URL --token $ORE_TOKEN --dir /private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/repo1m --repos 10 --concurrency 10
+   (2s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0000 --concurrency 200 --duration 30s & bin/orebench commits --url $ORE_URL --token $ORE_TOKEN --repo bench/r0001 --concurrency 50 --count 500 & bin/orebench pipelines --url $ORE_URL --token $ORE_TOKEN --repo bench/r0002 --concurrency 20 --count 40 --timeout 15m & bin/orebench agents --url $ORE_URL --token $ORE_TOKEN --repo bench/r0003 --concurrency 10 --count 20 --timeout 15m & wait
+   (115s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0004 --concurrency 300 --duration 20s
+   (20s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0004 --concurrency 300 --duration 20s --ramp 2s
+   (20s)
+   1 time=2026-10-19T05:09:06.227-04:00 level=ERROR msg=request request_id=req_000038AKDFSZ32FJB1PC method=GET path=/api/v0/repos/bench/r0004/issues status=500 bytes=35 duration_ms=66 remote=127.0.0.1
+   1 time=2026-10-19T05:09:06.226-04:00 level=ERROR msg="request failed" method=GET path=/api/v0/repos/bench/r0004/issues error="driver: bad connection"
+   1 time=2026-10-19T05:07:01.267-04:00 level=ERROR msg=request request_id=req_000038AKD85WMTAYCKH9 method=GET path=/api/v0/repos/bench/r0002/runs/prun_000038AKD7WES3FWPPSH status=500 bytes=35 duration_ms=72 remote=127.0.0.1
+   1 time=2026-10-19T05:07:01.267-04:00 level=ERROR msg="request failed" method=GET path=/api/v0/repos/bench/r0002/runs/prun_000038AKD7WES3FWPPSH error="driver: bad connection"

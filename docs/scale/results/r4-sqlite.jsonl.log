@@ -1,0 +1,7 @@
+server pid=76516 url=http://127.0.0.1:59122 data=/private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/data-r4-sqlite executor=host db=sqlite
+== bin/orebench push --url $ORE_URL --token $ORE_TOKEN --dir /private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/repo1m --repos 10 --concurrency 10
+   (2s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0000 --concurrency 200 --duration 30s & bin/orebench commits --url $ORE_URL --token $ORE_TOKEN --repo bench/r0001 --concurrency 50 --count 500 & bin/orebench pipelines --url $ORE_URL --token $ORE_TOKEN --repo bench/r0002 --concurrency 20 --count 40 --timeout 15m & bin/orebench agents --url $ORE_URL --token $ORE_TOKEN --repo bench/r0003 --concurrency 10 --count 20 --timeout 15m & wait
+   (227s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0004 --concurrency 300 --duration 20s
+   (21s)

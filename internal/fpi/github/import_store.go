@@ -328,6 +328,9 @@ func (st store) reserveIssueNumbers(ctx context.Context, repo ledger.Repo, jobID
 		return false, err
 	}
 	defer tx.Rollback()
+	if err := tx.LockRow("repos", repo.ID); err != nil {
+		return false, err
+	}
 	var cur sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `SELECT MAX(number) FROM issues WHERE repo_id = ?`, repo.ID).Scan(&cur); err != nil {
 		return false, err
@@ -833,6 +836,9 @@ func freeNumberAbove(ctx context.Context, tx *ledger.Tx, table, repoID string, p
 		if n == 0 {
 			return preferred, nil
 		}
+	}
+	if err := tx.LockRow("repos", repoID); err != nil {
+		return 0, err
 	}
 	var m sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `SELECT MAX(number) FROM `+table+` WHERE repo_id = ?`, repoID).Scan(&m); err != nil {

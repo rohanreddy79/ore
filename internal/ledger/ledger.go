@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"database/sql/driver"
 	"embed"
 	"encoding/base32"
 	"encoding/binary"
@@ -106,13 +107,7 @@ func openSQLite(ctx context.Context, path string, opt Options) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	conns := runtime.NumCPU() * 2
-	if conns < 4 {
-		conns = 4
-	}
-	if conns > 32 {
-		conns = 32
-	}
+	conns := poolSize(runtime.NumCPU()*2, 4, 32)
 	s.SetMaxOpenConns(conns)
 	s.SetMaxIdleConns(conns)
 	db := &DB{sql: s, dialect: DialectSQLite, target: path}
@@ -131,14 +126,36 @@ func openSQLite(ctx context.Context, path string, opt Options) (*DB, error) {
 	return db, nil
 }
 
+// poolSize is the connection pool size: ORE_DB_MAX_CONNS when set, else def
+// clamped to [lo, hi].
+func poolSize(def, lo, hi int) int {
+	if v, err := strconv.Atoi(os.Getenv("ORE_DB_MAX_CONNS")); err == nil && v > 0 {
+		return v
+	}
+	if def < lo {
+		return lo
+	}
+	if def > hi {
+		return hi
+	}
+	return def
+}
+
 func openPostgres(ctx context.Context, url string, opt Options) (*DB, error) {
 	s, err := sql.Open(pg.Driver, url)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
-	s.SetMaxOpenConns(16)
-	s.SetMaxIdleConns(4)
-	s.SetConnMaxIdleTime(5 * time.Minute)
+	// Every request holds a connection only for its own statements (git runs
+	// outside transactions), so the pool is sized for request concurrency,
+	// not CPUs; Postgres' default max_connections is 100 per server.
+	conns := poolSize(runtime.NumCPU()*4, 8, 64)
+	s.SetMaxOpenConns(conns)
+	s.SetMaxIdleConns(conns / 2)
+	// Idle connections are the ones proxies and firewalls drop; recycle them
+	// early and every connection eventually (see badConnRetry for the rest).
+	s.SetConnMaxIdleTime(time.Minute)
+	s.SetConnMaxLifetime(30 * time.Minute)
 	pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if err := s.PingContext(pctx); err != nil {
@@ -426,9 +443,27 @@ type Tx struct {
 	db  *DB
 }
 
+// LockRow takes a row-level write lock that lasts for the rest of the
+// transaction, so per-parent allocations (issue and change numbers, patch-set
+// numbers) are serialised on Postgres, where two READ COMMITTED transactions
+// would otherwise both read the same MAX(number) and one would fail on the
+// unique index. SQLite's immediate transactions already serialise writers, so
+// it is a no-op there. table is a trusted identifier.
+func (tx *Tx) LockRow(table, id string) error {
+	if tx.db.dialect != DialectPostgres {
+		return nil
+	}
+	_, err := tx.ExecContext(tx.ctx, `SELECT id FROM `+table+` WHERE id = ? FOR UPDATE`, id)
+	return err
+}
+
 // Begin starts a transaction.
 func (d *DB) Begin(ctx context.Context) (*Tx, error) {
-	tx, err := d.sql.BeginTx(ctx, nil)
+	var tx *sql.Tx
+	err := badConnRetry(ctx, func() (err error) {
+		tx, err = d.sql.BeginTx(ctx, nil)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -465,19 +500,55 @@ func (t *Tx) QueryRow(q string, args ...any) *sql.Row { return t.QueryRowContext
 
 // Query proxies read queries.
 func (d *DB) Query(ctx context.Context, q string, args ...any) (*sql.Rows, error) {
-	rows, err := d.sql.QueryContext(ctx, d.rewrite(q), args...)
+	var rows *sql.Rows
+	err := badConnRetry(ctx, func() (err error) {
+		rows, err = d.sql.QueryContext(ctx, d.rewrite(q), args...)
+		return err
+	})
 	return rows, d.wrapErr(err)
 }
 
 // QueryRow proxies single-row reads.
 func (d *DB) QueryRow(ctx context.Context, q string, args ...any) *sql.Row {
-	return d.sql.QueryRowContext(ctx, d.rewrite(q), args...)
+	var row *sql.Row
+	badConnRetry(ctx, func() error {
+		row = d.sql.QueryRowContext(ctx, d.rewrite(q), args...)
+		return row.Err()
+	})
+	return row
 }
 
 // Exec proxies writes that do not need events.
 func (d *DB) Exec(ctx context.Context, q string, args ...any) (sql.Result, error) {
-	r, err := d.sql.ExecContext(ctx, d.rewrite(q), args...)
+	var r sql.Result
+	err := badConnRetry(ctx, func() (err error) {
+		r, err = d.sql.ExecContext(ctx, d.rewrite(q), args...)
+		return err
+	})
 	return r, d.wrapErr(err)
+}
+
+// badConnRetry runs fn again, a few times, when database/sql has given up on
+// a connection (driver.ErrBadConn after its own retries). Seen on Postgres
+// behind Docker Desktop under load, where idle pooled connections are reset
+// underneath the pool; the statement was never sent, so retrying is safe.
+func badConnRetry(ctx context.Context, fn func() error) error {
+	var err error
+	for attempt := 0; attempt < 4; attempt++ {
+		if err = fn(); err == nil || !isBadConn(err) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(time.Duration(20*(attempt+1)) * time.Millisecond):
+		}
+	}
+	return err
+}
+
+func isBadConn(err error) bool {
+	return errors.Is(err, driver.ErrBadConn) || strings.Contains(err.Error(), "driver: bad connection")
 }
 
 // Now returns the ledger's canonical timestamp format (RFC 3339, UTC, millisecond).

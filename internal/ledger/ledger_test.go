@@ -5,7 +5,9 @@ package ledger
 import (
 	"bytes"
 	"context"
+	"database/sql/driver"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -280,5 +282,86 @@ func TestOpenPostgresDialectWhenConfigured(t *testing.T) {
 	evs, err := db.Events(ctx, EventsOptions{Type: "io.ore.", Limit: 10})
 	if err != nil || len(evs) != 2 {
 		t.Fatalf("%v %d", err, len(evs))
+	}
+}
+
+// Concurrent creates must never collide on the per-repo number: on Postgres
+// two READ COMMITTED transactions read the same MAX(number) unless the repo
+// row is locked first (nextNumber), which Round 2 of the scale harness hit as
+// "duplicate key value violates unique constraint" on issues and changes.
+func TestNumbersAreUniqueUnderConcurrentCreates(t *testing.T) {
+	db, _ := openTemp(t)
+	ctx := context.Background()
+	org, err := db.CreateOrg(ctx, "acme", System)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo, err := db.CreateRepo(ctx, org, "app", "main", 2, 0, System)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const n = 24
+	var wg sync.WaitGroup
+	issueErrs := make([]error, n)
+	changeErrs := make([]error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(2)
+		go func(i int) {
+			defer wg.Done()
+			_, issueErrs[i] = db.CreateIssue(ctx, repo, fmt.Sprintf("issue %d", i), "", System)
+		}(i)
+		go func(i int) {
+			defer wg.Done()
+			c := &Change{ChangeID: fmt.Sprintf("I%d", i), Title: fmt.Sprintf("change %d", i), SourceRef: fmt.Sprintf("refs/heads/c%d", i), TargetRef: "refs/heads/main"}
+			changeErrs[i] = db.InsertChange(ctx, repo, c, System)
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < n; i++ {
+		if issueErrs[i] != nil {
+			t.Fatalf("issue %d: %v", i, issueErrs[i])
+		}
+		if changeErrs[i] != nil {
+			t.Fatalf("change %d: %v", i, changeErrs[i])
+		}
+	}
+	for _, table := range []string{"issues", "changes"} {
+		var distinct, total int
+		if err := db.QueryRow(ctx, `SELECT COUNT(DISTINCT number), COUNT(1) FROM `+table+` WHERE repo_id = ?`, repo.ID).Scan(&distinct, &total); err != nil {
+			t.Fatal(err)
+		}
+		if distinct != n || total != n {
+			t.Fatalf("%s: %d distinct numbers over %d rows, want %d", table, distinct, total, n)
+		}
+	}
+}
+
+// A connection database/sql has given up on is retried a few times before the
+// error reaches a caller; other errors and context expiry are not retried.
+func TestBadConnectionIsRetried(t *testing.T) {
+	calls := 0
+	err := badConnRetry(context.Background(), func() error {
+		calls++
+		if calls < 3 {
+			return fmt.Errorf("wrapped: %w", driver.ErrBadConn)
+		}
+		return nil
+	})
+	if err != nil || calls != 3 {
+		t.Fatalf("err %v after %d calls", err, calls)
+	}
+	calls = 0
+	if err := badConnRetry(context.Background(), func() error { calls++; return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) || calls != 4 {
+		t.Fatalf("gave up: %v after %d calls", err, calls)
+	}
+	calls = 0
+	if err := badConnRetry(context.Background(), func() error { calls++; return errors.New("other") }); err == nil || calls != 1 {
+		t.Fatalf("other error retried: %v after %d calls", err, calls)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	calls = 0
+	if err := badConnRetry(ctx, func() error { calls++; return driver.ErrBadConn }); err == nil || calls != 1 {
+		t.Fatalf("retried past a cancelled context: %v after %d calls", err, calls)
 	}
 }

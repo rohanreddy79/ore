@@ -15,6 +15,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,8 +131,30 @@ func (rn *Runner) Run(ctx context.Context, repo ledger.Repo, commitOID string, c
 	return run, nil
 }
 
-// Execute runs an already-recorded (queued) run to completion.
+// runSlots bounds concurrent pipeline executions per process so a burst of
+// runs queues instead of materializing dozens of workspaces at once;
+// ORE_PIPELINE_CONCURRENCY overrides the default of the CPU count.
+var runSlots = make(chan struct{}, concurrencyFromEnv("ORE_PIPELINE_CONCURRENCY", runtime.NumCPU()))
+
+func concurrencyFromEnv(name string, def int) int {
+	if v, err := strconv.Atoi(os.Getenv(name)); err == nil && v > 0 {
+		return v
+	}
+	if def < 2 {
+		def = 2
+	}
+	return def
+}
+
+// Execute runs an already-recorded (queued) run to completion. Runs beyond
+// the concurrency cap wait in the queued state.
 func (rn *Runner) Execute(ctx context.Context, repo ledger.Repo, run *ledger.PipelineRun, actor ledger.Actor) error {
+	select {
+	case runSlots <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	defer func() { <-runSlots }()
 	if err := os.MkdirAll(rn.LogsDir, 0o755); err != nil {
 		return err
 	}
@@ -171,14 +195,15 @@ func (rn *Runner) execute(ctx context.Context, repo ledger.Repo, commitOID strin
 		}
 	}
 	t0 := time.Now()
-	if err := gitx.ArchivePaths(ctx, repoPath, commitOID, work, sparse); err != nil {
+	how, err := rn.materialize(ctx, repoPath, repo.ID, commitOID, sparse, work)
+	if err != nil {
 		logw.line("ore", "materialize "+commitOID+": "+err.Error())
 		return "error", nil
 	}
 	if len(sparse) > 0 {
-		logw.line("ore", fmt.Sprintf("materialized %d path(s) in %d ms (sparse)", len(sparse)-1, time.Since(t0).Milliseconds()))
+		logw.line("ore", fmt.Sprintf("materialized %d path(s) in %d ms (sparse), %s", len(sparse)-1, time.Since(t0).Milliseconds(), how))
 	} else {
-		logw.line("ore", fmt.Sprintf("materialized the tree in %d ms", time.Since(t0).Milliseconds()))
+		logw.line("ore", fmt.Sprintf("materialized the tree in %d ms, %s", time.Since(t0).Milliseconds(), how))
 	}
 	// Authoring front-ends (GitHub Actions workflows) apply when the tree has
 	// no native pipeline file; see runir.go.

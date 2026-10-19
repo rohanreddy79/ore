@@ -6,20 +6,24 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/orevcs/ore/internal/agent"
 	"github.com/orevcs/ore/internal/delivery"
 	"github.com/orevcs/ore/internal/ledger"
 	"github.com/orevcs/ore/internal/pipelines"
 	"github.com/orevcs/ore/internal/review"
+	"log/slog"
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, string) {
@@ -190,5 +194,137 @@ func TestTreeListingIsScoped(t *testing.T) {
 	rec, _ := get("?path=pkg03")
 	if len(rec) != 30 {
 		t.Fatalf("subdir recursive: %d", len(rec))
+	}
+}
+
+// A second create of the same org or repo is a 409, not a 500: the scale
+// harness's ensureRepo and the GitHub importer both rely on it.
+func TestDuplicateOrgAndRepoReturn409(t *testing.T) {
+	srv, tok := newTestServer(t)
+	for i, want := range []int{201, 409} {
+		if code := call(t, srv, tok, "POST", "/api/v0/orgs", map[string]string{"name": "dup"}, nil); code != want {
+			t.Fatalf("create org #%d: %d, want %d", i+1, code, want)
+		}
+	}
+	for i, want := range []int{201, 409} {
+		if code := call(t, srv, tok, "POST", "/api/v0/repos", map[string]any{"org": "dup", "name": "app"}, nil); code != want {
+			t.Fatalf("create repo #%d: %d, want %d", i+1, code, want)
+		}
+	}
+}
+
+// File and log reads are cached per commit, so they must follow the branch
+// as it moves: a new commit changes the resolved oid and therefore the key.
+func TestFileAndLogFollowTheBranchAcrossCommits(t *testing.T) {
+	srv, tok := newTestServer(t)
+	call(t, srv, tok, "POST", "/api/v0/orgs", map[string]string{"name": "acme"}, nil)
+	call(t, srv, tok, "POST", "/api/v0/repos", map[string]any{"org": "acme", "name": "cache"}, nil)
+	for i, want := range []string{"one\n", "two\n"} {
+		var commit struct{ Commit string }
+		if code := call(t, srv, tok, "POST", "/api/v0/repos/acme/cache/commits", map[string]any{"branch": "main", "message": fmt.Sprintf("c%d", i), "files": []map[string]any{{"path": "f.txt", "content": want}}}, &commit); code != 201 {
+			t.Fatalf("commit %d: %d", i, code)
+		}
+		req, _ := http.NewRequest("GET", srv.URL+"/api/v0/repos/acme/cache/file?path=f.txt", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		for pass := 0; pass < 2; pass++ { // second pass is served from the cache
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != 200 || string(body) != want {
+				t.Fatalf("file after commit %d (pass %d): %d %q", i, pass, resp.StatusCode, body)
+			}
+		}
+		var log []map[string]any
+		if code := call(t, srv, tok, "GET", "/api/v0/repos/acme/cache/log", nil, &log); code != 200 || len(log) != i+1 {
+			t.Fatalf("log after commit %d: %d %d entries", i, code, len(log))
+		}
+	}
+	if code := call(t, srv, tok, "GET", "/api/v0/repos/acme/cache/file?path=missing.txt", nil, nil); code != 404 {
+		t.Fatalf("missing file: %d", code)
+	}
+	if code := call(t, srv, tok, "GET", "/api/v0/repos/acme/cache/log?ref=refs/heads/nope", nil, nil); code != 404 {
+		t.Fatalf("missing branch: %d", code)
+	}
+}
+
+// Concurrent misses on one key share a single load; a failed leader does not
+// poison the waiters, who load on their own; values past the budget evict
+// the oldest entries.
+func TestMemCacheSingleflightAndEviction(t *testing.T) {
+	c := newMemCache(1000)
+	var loads int32
+	release := make(chan struct{})
+	var wg sync.WaitGroup
+	results := make([]any, 20)
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			v, err := c.get("k", func() (any, int, error) {
+				atomic.AddInt32(&loads, 1)
+				<-release
+				return "v", 1, nil
+			})
+			if err != nil {
+				t.Error(err)
+			}
+			results[i] = v
+		}(i)
+	}
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	if n := atomic.LoadInt32(&loads); n != 1 {
+		t.Fatalf("loads: %d, want 1", n)
+	}
+	for _, v := range results {
+		if v != "v" {
+			t.Fatalf("result %v", v)
+		}
+	}
+	// a failing leader: waiters retry on their own and succeed
+	var failLoads int32
+	gate := make(chan struct{})
+	wg = sync.WaitGroup{}
+	errs := make([]error, 5)
+	for i := range errs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, errs[i] = c.get("f", func() (any, int, error) {
+				if atomic.AddInt32(&failLoads, 1) == 1 {
+					<-gate
+					return nil, 0, errors.New("leader cancelled")
+				}
+				return "ok", 1, nil
+			})
+		}(i)
+	}
+	time.Sleep(50 * time.Millisecond)
+	close(gate)
+	wg.Wait()
+	failed := 0
+	for _, err := range errs {
+		if err != nil {
+			failed++
+		}
+	}
+	if failed != 1 {
+		t.Fatalf("%d callers failed, want only the leader", failed)
+	}
+	// eviction: the budget is 1000 bytes, each entry costs size+len(key)+64
+	for i := 0; i < 50; i++ {
+		c.get(fmt.Sprintf("e%02d", i), func() (any, int, error) { return i, 100, nil })
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.size > c.max || len(c.entries) >= 50 || len(c.entries) == 0 {
+		t.Fatalf("size %d entries %d", c.size, len(c.entries))
+	}
+	if _, ok := c.entries["e49"]; !ok {
+		t.Fatal("newest entry evicted")
 	}
 }

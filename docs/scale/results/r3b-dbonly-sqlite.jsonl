@@ -1,0 +1,10 @@
+{"bytes":0,"concurrency":1,"elapsed_s":0.72,"error_kinds":{},"errors":0,"max_ms":690.92,"ok":1,"p50_ms":690.92,"p95_ms":690.92,"p99_ms":690.92,"repos":1,"rps":1.37,"scenario":"push"}
+{"bytes":353811818,"concurrency":50,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":174.73,"ok":440434,"p50_ms":1.38,"p95_ms":3.42,"p99_ms":6.67,"requests":440481,"rps":29360.71,"scenario":"api"}
+{"bytes":732650,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":174.44,"ok":146530,"p50_ms":1.54,"p95_ms":3.6,"p99_ms":6.77,"rps":9768.14,"scenario":"api.changes"}
+{"bytes":352344618,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":174.73,"ok":146994,"p50_ms":1.16,"p95_ms":3.11,"p99_ms":6.46,"rps":9799.08,"scenario":"api.events"}
+{"bytes":734550,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":125.38,"ok":146910,"p50_ms":1.43,"p95_ms":3.47,"p99_ms":6.76,"rps":9793.48,"scenario":"api.issues"}
+{"bytes":8880464095,"concurrency":50,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":430.46,"ok":75788,"p50_ms":4.64,"p95_ms":37.85,"p99_ms":67.53,"requests":75836,"rps":5052.22,"scenario":"api"}
+{"bytes":8803879104,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":403.21,"ok":25152,"p50_ms":9.66,"p95_ms":49.16,"p99_ms":85.04,"rps":1676.69,"scenario":"api.tree"}
+{"bytes":55588741,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":430.46,"ok":25186,"p50_ms":2.7,"p95_ms":28.88,"p99_ms":54.93,"rps":1678.96,"scenario":"api.file"}
+{"bytes":20996250,"elapsed_s":15,"error_kinds":{},"errors":0,"max_ms":383.11,"ok":25450,"p50_ms":2.63,"p95_ms":27.15,"p99_ms":50.13,"rps":1696.56,"scenario":"api.log"}
+{"scenario":"server","peak_rss_mb":123,"peak_fds":110,"errors_in_log":0,"panics":0}

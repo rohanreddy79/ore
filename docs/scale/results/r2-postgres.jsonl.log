@@ -1,0 +1,17 @@
+server pid=51459 url=http://127.0.0.1:60877 data=/private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/data-r2-postgres executor=host db=postgres://ore:ore@127.0.0.1:60873/ore?sslmode=disable
+== bin/orebench push --url $ORE_URL --token $ORE_TOKEN --dir /private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/repo1m --repos 10 --concurrency 10
+   (2s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0000 --concurrency 200 --duration 30s & bin/orebench commits --url $ORE_URL --token $ORE_TOKEN --repo bench/r0001 --concurrency 50 --count 500 & bin/orebench pipelines --url $ORE_URL --token $ORE_TOKEN --repo bench/r0002 --concurrency 20 --count 40 --timeout 15m & bin/orebench agents --url $ORE_URL --token $ORE_TOKEN --repo bench/r0003 --concurrency 10 --count 20 --timeout 15m & wait
+   (257s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/r0004 --concurrency 300 --duration 20s
+   (20s)
+   1 time=2026-10-19T04:12:52.894-04:00 level=ERROR msg=request request_id=req_000038AK71XGA84WT9CF method=POST path=/api/v0/repos/bench/r0003/issues status=500 bytes=139 duration_ms=25 remote=127.0.0.1
+   1 time=2026-10-19T04:12:52.864-04:00 level=ERROR msg=request request_id=req_000038AK71XACMZFPFNK method=POST path=/api/v0/repos/bench/r0003/issues status=500 bytes=139 duration_ms=90 remote=127.0.0.1
+   1 time=2026-10-19T04:10:08.733-04:00 level=ERROR msg=request request_id=req_000038AK6QWN4VGBD92Y method=POST path=/api/v0/repos/bench/r0003/issues status=500 bytes=139 duration_ms=138 remote=127.0.0.1
+   1 time=2026-10-19T04:10:08.732-04:00 level=ERROR msg=request request_id=req_000038AK6QWN5J8RSB09 method=POST path=/api/v0/repos/bench/r0003/issues status=500 bytes=139 duration_ms=138 remote=127.0.0.1
+   1 time=2026-10-19T04:10:08.730-04:00 level=ERROR msg=request request_id=req_000038AK6QWN5VSNSRAK method=POST path=/api/v0/repos/bench/r0003/issues status=500 bytes=139 duration_ms=135 remote=127.0.0.1
+   1 time=2026-10-19T04:10:06.318-04:00 level=ERROR msg=request request_id=req_000038AK6QR5BDM0JCBN method=POST path=/api/v0/orgs status=500 bytes=139 duration_ms=24 remote=127.0.0.1
+   1 time=2026-10-19T04:10:06.317-04:00 level=ERROR msg=request request_id=req_000038AK6QR5B5022YXW method=POST path=/api/v0/orgs status=500 bytes=139 duration_ms=23 remote=127.0.0.1
+   1 time=2026-10-19T04:10:06.315-04:00 level=ERROR msg=request request_id=req_000038AK6QR5CZAR4AAV method=POST path=/api/v0/orgs status=500 bytes=139 duration_ms=21 remote=127.0.0.1
+   1 time=2026-10-19T04:10:06.312-04:00 level=ERROR msg=request request_id=req_000038AK6QR5BAAVMW8D method=POST path=/api/v0/orgs status=500 bytes=139 duration_ms=18 remote=127.0.0.1
+   1 time=2026-10-19T04:10:06.312-04:00 level=ERROR msg=request request_id=req_000038AK6QR5A346F2QP method=POST path=/api/v0/orgs status=500 bytes=139 duration_ms=19 remote=127.0.0.1

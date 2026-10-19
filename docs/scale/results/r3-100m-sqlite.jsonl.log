@@ -1,0 +1,13 @@
+server pid=57047 url=http://127.0.0.1:58728 data=/private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/data-r3-100m executor=host db=sqlite
+== bin/orebench push --url $ORE_URL --token $ORE_TOKEN --dir /private/tmp/claude-501/-Users-rohanreddy-Git-opensource/8b767191-9830-4980-aacd-06bb80986487/scratchpad/repo100m --repos 1 --concurrency 1 --prefix big
+   (14s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 20 --duration 20s --mix tree,file,log,refs
+   (20s)
+== bin/orebench api --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 200 --duration 20s --mix treetop,treedir,file,log,refs
+   (20s)
+== bin/orebench commits --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 5 --count 20
+   (4s)
+== bin/orebench pipelines --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 2 --count 4 --timeout 20m
+   (3s)
+== bin/orebench agents --url $ORE_URL --token $ORE_TOKEN --repo bench/big0000 --concurrency 2 --count 4 --timeout 20m
+   (8s)

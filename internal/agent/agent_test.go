@@ -139,7 +139,8 @@ func TestLoopUsesSparseCheckoutWhenPathsDeclared(t *testing.T) {
 	if err := gitx.UpdateRef(ctx, rp, "refs/heads/main", c1, c0); err != nil {
 		t.Fatal(err)
 	}
-	loop.AdapterCmd = `test ! -e svc/b && test ! -e greeting.txt && sed -i.bak 's/World/Ore/' svc/a/greeting.txt && rm svc/a/greeting.txt.bak`
+	// the agent edits inside the cone and also creates a file outside it
+	loop.AdapterCmd = `test ! -e svc/b && test ! -e greeting.txt && sed -i.bak 's/World/Ore/' svc/a/greeting.txt && rm svc/a/greeting.txt.bak && mkdir -p notes && echo why > notes/CHANGE.md`
 	run, err := loop.RunSync(ctx, repo, Request{Prompt: "fix greeting in svc/a"}, ledger.System)
 	if err != nil {
 		t.Fatal(err)
@@ -155,5 +156,39 @@ func TestLoopUsesSparseCheckoutWhenPathsDeclared(t *testing.T) {
 	other, _ := gitx.ReadFile(ctx, rp, "refs/heads/main", "svc/b/other.txt")
 	if string(other) != "b\n" {
 		t.Fatalf("sparse checkout must not drop untouched paths: %q", other)
+	}
+	note, err := gitx.ReadFile(ctx, rp, "refs/heads/main", "notes/CHANGE.md")
+	if err != nil || string(note) != "why\n" {
+		t.Fatalf("a file created outside the sparse cone must be committed: %v %q", err, note)
+	}
+}
+
+// When the server authenticates Claude Code with ANTHROPIC_API_KEY, the
+// adapter gets a configuration directory of its own, outside the workspace,
+// so a stale interactive login on the host cannot override the key; an
+// explicit CLAUDE_CONFIG_DIR is left alone, and without a key nothing changes.
+func TestAdapterGetsAnIsolatedClaudeConfigDirWithAnAPIKey(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	db, repo, loop, _ := setup(t, 3)
+	loop.AdapterCmd = `test -n "$CLAUDE_CONFIG_DIR" && test -d "$CLAUDE_CONFIG_DIR" && case "$CLAUDE_CONFIG_DIR" in "$PWD"/*) exit 1;; esac && sed -i.bak 's/World/Ore/' greeting.txt && rm greeting.txt.bak`
+	issue, _ := db.CreateIssue(ctx, repo, "Greeting should say Hello, Ore!", "", ledger.Actor{Kind: "human", ID: "rohan"})
+	run, err := loop.RunSync(ctx, repo, Request{Issue: &issue}, ledger.Actor{Kind: "human", ID: "rohan"})
+	if err != nil || run.Status != "completed" {
+		log, _ := os.ReadFile(run.LogPath)
+		t.Fatalf("status %s err %v error %q\n%s", run.Status, err, run.Error, log)
+	}
+	if want := filepath.Join(filepath.Dir(loop.LogsDir), "claude-config"); loop.claudeConfigDir() != want {
+		t.Fatalf("config dir %q, want %q", loop.claudeConfigDir(), want)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", "/elsewhere")
+	if got := loop.claudeConfigDir(); got != "" {
+		t.Fatalf("explicit CLAUDE_CONFIG_DIR overridden with %q", got)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	if got := loop.claudeConfigDir(); got != "" {
+		t.Fatalf("no key but config dir %q", got)
 	}
 }

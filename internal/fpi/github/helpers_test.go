@@ -381,7 +381,7 @@ func (h *harness) api(method, path string, in, out any) int {
 
 func (h *harness) createRepo(org, name string) ledger.Repo {
 	h.t.Helper()
-	if code := h.api("POST", "/api/v0/orgs", map[string]string{"name": org}, nil); code != 201 && code != 500 {
+	if code := h.api("POST", "/api/v0/orgs", map[string]string{"name": org}, nil); code != 201 && code != 409 {
 		h.t.Fatalf("create org: %d", code)
 	}
 	var repo ledger.Repo

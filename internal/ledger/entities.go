@@ -282,6 +282,9 @@ const ZeroOID = "0000000000000000000000000000000000000000"
 
 // NextNumber allocates the next per-repository number for a table (issues, changes).
 func nextNumber(tx *Tx, table, repoID string) (int, error) {
+	if err := tx.LockRow("repos", repoID); err != nil {
+		return 0, err
+	}
 	var n sql.NullInt64
 	if err := tx.QueryRowContext(tx.ctx, `SELECT MAX(number) FROM `+table+` WHERE repo_id = ?`, repoID).Scan(&n); err != nil {
 		return 0, err

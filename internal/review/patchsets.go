@@ -52,6 +52,9 @@ func (s *Service) recordPatchSet(ctx context.Context, r ledger.Repo, c ledger.Ch
 	}
 	defer tx.Rollback()
 	// Re-check under the transaction: a concurrent request may have recorded it.
+	if err := tx.LockRow("changes", c.ID); err != nil {
+		return PatchSet{}, false, err
+	}
 	var n int
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(number), 0) FROM patch_sets WHERE change_id = ?`, c.ID).Scan(&n); err != nil {
 		return PatchSet{}, false, err

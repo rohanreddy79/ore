@@ -1,0 +1,16 @@
+{"bytes":0,"concurrency":1,"elapsed_s":13.56,"error_kinds":{},"errors":0,"max_ms":13517.89,"ok":1,"p50_ms":13517.89,"p95_ms":13517.89,"p99_ms":13517.89,"repos":1,"rps":0.07,"scenario":"push"}
+{"bytes":68448684517,"concurrency":20,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":103.52,"ok":414092,"p50_ms":0.69,"p95_ms":2.35,"p99_ms":4.91,"requests":414110,"rps":20704.17,"scenario":"api"}
+{"bytes":88994308,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":62.99,"ok":103844,"p50_ms":0.58,"p95_ms":2.1,"p99_ms":4.03,"rps":5192.09,"scenario":"api.log"}
+{"bytes":66146330290,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":42.59,"ok":103356,"p50_ms":0.83,"p95_ms":2.57,"p99_ms":5.36,"rps":5167.69,"scenario":"api.tree"}
+{"bytes":7006448,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":103.52,"ok":103036,"p50_ms":0.74,"p95_ms":2.5,"p99_ms":5.35,"rps":5151.69,"scenario":"api.refs"}
+{"bytes":2206353471,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":46.25,"ok":103856,"p50_ms":0.61,"p95_ms":2.18,"p99_ms":4.75,"rps":5192.69,"scenario":"api.file"}
+{"bytes":4559422304,"concurrency":200,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":181.71,"ok":553922,"p50_ms":6.18,"p95_ms":15.91,"p99_ms":23.1,"requests":554045,"rps":27694.12,"scenario":"api"}
+{"bytes":111423870,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":181.71,"ok":110430,"p50_ms":6.13,"p95_ms":15.89,"p99_ms":23.09,"rps":5521.1,"scenario":"api.treetop"}
+{"bytes":1988624473,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":169.86,"ok":110473,"p50_ms":6.16,"p95_ms":15.85,"p99_ms":23.27,"rps":5523.25,"scenario":"api.treedir"}
+{"bytes":2356632973,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":165.69,"ok":110884,"p50_ms":6.18,"p95_ms":15.86,"p99_ms":22.89,"rps":5543.8,"scenario":"api.file"}
+{"bytes":95188704,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":169.84,"ok":111072,"p50_ms":6.13,"p95_ms":15.94,"p99_ms":23.04,"rps":5553.2,"scenario":"api.log"}
+{"bytes":7552284,"elapsed_s":20,"error_kinds":{},"errors":0,"max_ms":167.78,"ok":111063,"p50_ms":6.31,"p95_ms":16.06,"p99_ms":23.19,"rps":5552.75,"scenario":"api.refs"}
+{"bytes":1860,"concurrency":5,"count":20,"elapsed_s":4.64,"error_kinds":{},"errors":0,"max_ms":1568.88,"ok":20,"p50_ms":1171.08,"p95_ms":1536.52,"p99_ms":1536.52,"rps":4.3,"scenario":"commits"}
+{"bytes":0,"concurrency":2,"count":4,"elapsed_s":1.53,"error_kinds":{},"errors":0,"max_ms":1021.75,"ok":4,"p50_ms":514.28,"p95_ms":1021.6,"p99_ms":1021.6,"rps":2.6,"scenario":"pipelines","statuses":{"succeeded":4}}
+{"bytes":0,"concurrency":2,"count":4,"elapsed_s":6.53,"error_kinds":{},"errors":0,"max_ms":3516.12,"ok":4,"p50_ms":3012.18,"p95_ms":3515.09,"p99_ms":3515.09,"rps":0.61,"scenario":"agents","statuses":{"blocked":4}}
+{"scenario":"server","peak_rss_mb":70,"peak_fds":266,"errors_in_log":0,"panics":0}

@@ -178,6 +178,9 @@ func freeNumber(ctx context.Context, tx *ledger.Tx, table, repoID string, prefer
 			return preferred, nil
 		}
 	}
+	if err := tx.LockRow("repos", repoID); err != nil {
+		return 0, err
+	}
 	var m sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `SELECT MAX(number) FROM `+table+` WHERE repo_id = ?`, repoID).Scan(&m); err != nil {
 		return 0, err
