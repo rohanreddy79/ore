@@ -1,0 +1,182 @@
+{
+  "version": "0",
+  "id": ".github/workflows/cache-restore-keys.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated')"
+    },
+    "events": [
+      {
+        "name": "push"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "cache-restore-keys/deps",
+      "name": "deps",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/cache/restore@v4",
+            "repository": "actions/cache",
+            "path": "restore",
+            "sha": "1bd1e32a3bdc45362d1e726936510720a7c30a57",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/cache/save@v4",
+            "repository": "actions/cache",
+            "path": "save",
+            "sha": "1bd1e32a3bdc45362d1e726936510720a7c30a57",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/cache@v4",
+            "repository": "actions/cache",
+            "sha": "1bd1e32a3bdc45362d1e726936510720a7c30a57",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "deps",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "cache-restore-keys",
+          "workflow_name": "Cache"
+        },
+        "caches": [
+          {
+            "key": "${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}",
+            "restore_keys": [
+              "${{ runner.os }}-node-",
+              "${{ runner.os }}-"
+            ],
+            "paths": [
+              "~/.npm",
+              "node_modules"
+            ],
+            "scope": "internal"
+          },
+          {
+            "key": "build-${{ github.sha }}",
+            "paths": [
+              "**/node_modules",
+              "/tmp/build-cache"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "id": "restore",
+          "name": "Restore",
+          "uses": "actions/cache/restore@v4",
+          "with": {
+            "key": "${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}",
+            "path": "~/.npm\nnode_modules\n",
+            "restore-keys": "${{ runner.os }}-node-\n${{ runner.os }}-\n"
+          }
+        },
+        {
+          "run": "npm ci",
+          "condition": "steps.restore.outputs.cache-hit != 'true'"
+        },
+        {
+          "run": "npm test"
+        },
+        {
+          "name": "Save",
+          "uses": "actions/cache/save@v4",
+          "with": {
+            "key": "${{ steps.restore.outputs.cache-primary-key }}",
+            "path": "~/.npm\nnode_modules\n"
+          },
+          "condition": "steps.restore.outputs.cache-hit != 'true'"
+        },
+        {
+          "name": "Build cache with globs (unsupported path)",
+          "uses": "actions/cache@v4",
+          "with": {
+            "key": "build-${{ github.sha }}",
+            "path": "**/node_modules\n/tmp/build-cache\n"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "caches": [
+          {
+            "key": "${{ steps.restore.outputs.cache-primary-key }}",
+            "paths": [
+              "~/.npm",
+              "node_modules"
+            ]
+          },
+          {
+            "key": "build-${{ github.sha }}",
+            "paths": [
+              "**/node_modules",
+              "/tmp/build-cache"
+            ]
+          }
+        ],
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:d4e7c56a84d3458ab6214c2be5a8bb9354a130c2c262be32f8fb6a205c69edd0"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/cache-restore-keys.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "cache.path-unsupported",
+        "message": "cache path \"**/node_modules\": globs are not supported; the path is skipped",
+        "location": "jobs.deps.steps[5].with.path"
+      }
+    ]
+  }
+}

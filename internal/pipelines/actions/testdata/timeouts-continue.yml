@@ -1,0 +1,31 @@
+name: Timeouts
+on: push
+defaults:
+  run:
+    shell: sh
+    working-directory: services/api
+jobs:
+  flaky:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: services/api/tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fast step
+        timeout-minutes: 5
+        run: ./run-tests.sh
+      - name: Slow step
+        timeout-minutes: 0.5
+        continue-on-error: true
+        run: ./soak.sh
+        shell: bash
+      - name: Custom shell
+        shell: perl {0}
+        run: print "hello from perl\n";
+      - name: Dynamic continue
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}
+        run: ./lint.sh
+        working-directory: .

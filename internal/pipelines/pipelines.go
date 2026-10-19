@@ -102,6 +102,14 @@ type Runner struct {
 	Executor string
 	// Timeout per task.
 	Timeout time.Duration
+
+	// Frontend, when set, compiles authoring sources (.github/workflows) into
+	// the IR for trees that have no .ore/pipeline.yaml (see frontend.go).
+	Frontend Frontend
+	// Stores are the native cache, artifact and secret stores for IR runs.
+	Stores *Stores
+	// DataDir holds the tool cache and stores; defaults to the parent of LogsDir.
+	DataDir string
 }
 
 // Run records a run and executes it, returning the final record.
@@ -132,12 +140,12 @@ func (rn *Runner) Execute(ctx context.Context, repo ledger.Repo, run *ledger.Pip
 	if err := rn.DB.UpdatePipelineRun(ctx, repo, run, "running", "", actor); err != nil {
 		return err
 	}
-	status, results := rn.execute(ctx, repo, run.CommitOID, logw)
+	status, results := rn.execute(withRun(ctx, run, actor), repo, run.CommitOID, logw)
 	tasks, _ := json.Marshal(results)
 	return rn.DB.UpdatePipelineRun(ctx, repo, run, status, string(tasks), actor)
 }
 
-func (rn *Runner) execute(ctx context.Context, repo ledger.Repo, commitOID string, logw *prefixWriter) (string, []TaskResult) {
+func (rn *Runner) execute(ctx context.Context, repo ledger.Repo, commitOID string, logw *prefixWriter) (string, any) {
 	work, err := os.MkdirTemp("", "ore-run-*")
 	if err != nil {
 		logw.line("ore", "workspace: "+err.Error())
@@ -148,6 +156,15 @@ func (rn *Runner) execute(ctx context.Context, repo ledger.Repo, commitOID strin
 	if err := gitx.Archive(ctx, repoPath, commitOID, work); err != nil {
 		logw.line("ore", "materialize "+commitOID+": "+err.Error())
 		return "error", nil
+	}
+	// Authoring front-ends (GitHub Actions workflows) apply when the tree has
+	// no native pipeline file; see runir.go.
+	if rn.Frontend != nil {
+		if _, err := os.Stat(filepath.Join(work, SpecPath)); errors.Is(err, os.ErrNotExist) {
+			if status, results, handled := rn.runFrontend(ctx, repo, commitOID, work, logw); handled {
+				return status, results
+			}
+		}
 	}
 	spec, explicit, err := LoadSpec(work)
 	if err != nil {

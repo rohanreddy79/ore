@@ -1,0 +1,164 @@
+{
+  "version": "0",
+  "id": ".github/workflows/schedule-cron.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.schedule.fired' \u0026\u0026 event.cron in ['0 2 * * *', '0 14 * * 1-5']) || (event.type == 'io.ore.ref.updated' \u0026\u0026 !(matches(event.ref_name, '^wip/.*$')) \u0026\u0026 event.paths.exists(p, (matches(p, '^src/.*$') || matches(p, '^go\\.mod$'))) \u0026\u0026 event.paths.exists(p, !(matches(p, '^src/.*/[^/]*\\.md$')))) || (event.type == 'io.ore.pipeline.dispatch' \u0026\u0026 event.pipeline == '.github/workflows/schedule-cron.yml')"
+    },
+    "events": [
+      {
+        "name": "schedule",
+        "cron": [
+          "0 2 * * *",
+          "0 14 * * 1-5"
+        ]
+      },
+      {
+        "name": "push",
+        "branches_ignore": [
+          "wip/**"
+        ],
+        "paths": [
+          "src/**",
+          "go.mod"
+        ],
+        "paths_ignore": [
+          "src/**/*.md"
+        ]
+      },
+      {
+        "name": "workflow_dispatch"
+      }
+    ]
+  },
+  "concurrency": {
+    "group": "nightly-${{ github.ref }}",
+    "cancel_in_progress": true
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "schedule-cron/nightly",
+      "name": "nightly",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "nightly",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "schedule-cron",
+          "workflow_name": "Nightly"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "run": "make nightly"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 7200
+      },
+      "content_hash": "sha256:74b3560bacaae9451550040e7e615cfd88a8b9494a52d1fd77bbd721bf173f53"
+    },
+    {
+      "id": "schedule-cron/sweep",
+      "name": "sweep",
+      "condition": "github.event_name == 'schedule'",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "sweep",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "schedule-cron",
+          "workflow_name": "Nightly"
+        }
+      },
+      "steps": [
+        {
+          "run": "make sweep"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:cc41f86c7899d79a9aa4dff629c2a9c4a0e0f6622d1fc43202907c3c99d2b380"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/schedule-cron.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "trigger.schedule-unscheduled",
+        "message": "schedule [0 2 * * * 0 14 * * 1-5] is parsed and recorded but Ore v0 does not fire scheduled runs",
+        "location": "on.schedule"
+      }
+    ]
+  }
+}

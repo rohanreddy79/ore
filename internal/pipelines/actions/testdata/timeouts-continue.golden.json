@@ -1,0 +1,118 @@
+{
+  "version": "0",
+  "id": ".github/workflows/timeouts-continue.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated')"
+    },
+    "events": [
+      {
+        "name": "push"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "timeouts-continue/flaky",
+      "name": "flaky",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "continue_on_error": true,
+          "env": {},
+          "fail_fast": true,
+          "job": "flaky",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "timeouts-continue",
+          "workflow_name": "Timeouts"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Fast step",
+          "run": "./run-tests.sh",
+          "shell": "sh",
+          "working_directory": "services/api/tests",
+          "timeout_seconds": 300
+        },
+        {
+          "name": "Slow step",
+          "run": "./soak.sh",
+          "shell": "bash",
+          "working_directory": "services/api/tests",
+          "continue_on_error": true,
+          "timeout_seconds": 30
+        },
+        {
+          "name": "Custom shell",
+          "run": "print \"hello from perl\\n\";",
+          "shell": "perl {0}",
+          "working_directory": "services/api/tests"
+        },
+        {
+          "name": "Dynamic continue",
+          "run": "./lint.sh",
+          "shell": "sh",
+          "working_directory": "."
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 1800
+      },
+      "content_hash": "sha256:f3555e9aac0a8593731ca5e7d401af62edc1acfb9187fef4c4f3f6aaf44f30e8"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/timeouts-continue.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "step.continue-on-error-dynamic",
+        "message": "`github.ref != 'refs/heads/main'` cannot be evaluated at plan time; treated as false",
+        "location": "jobs.flaky.steps[4].continue-on-error"
+      }
+    ]
+  }
+}

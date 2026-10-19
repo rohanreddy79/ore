@@ -1,0 +1,49 @@
+name: Pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: |
+          echo "version=$(git describe --always)" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/acme/app:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - run: make build
+  unit:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test-unit
+  integration:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test-integration
+        env:
+          APP_VERSION: ${{ needs.build.outputs.version }}
+  deploy:
+    needs: [unit, integration]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.example.com
+    steps:
+      - run: ./deploy.sh ${{ needs.build.outputs.image }}
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+  notify:
+    needs: [build, unit, integration, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "build=${{ needs.build.result }} unit=${{ needs.unit.result }} integration=${{ needs.integration.result }} deploy=${{ needs.deploy.result }}"

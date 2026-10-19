@@ -1,0 +1,29 @@
+name: Matrix
+on:
+  push:
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        os: [ubuntu-latest, ubuntu-22.04, macos-latest]
+        go: ['1.24', '1.25']
+        experimental: [false]
+        include:
+          - os: ubuntu-latest
+            go: tip
+            experimental: true
+          - go: '1.25'
+            coverage: 'yes'
+        exclude:
+          - os: macos-latest
+            go: '1.24'
+          - os: ubuntu-22.04
+            go: '1.25'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Go ${{ matrix.go }} on ${{ matrix.os }}
+        run: echo "go=${{ matrix.go }} os=${{ matrix.os }} coverage=${{ matrix.coverage }} experimental=${{ matrix.experimental }} index=${{ strategy.job-index }}/${{ strategy.job-total }}"

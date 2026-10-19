@@ -1,0 +1,27 @@
+name: Nightly
+on:
+  schedule:
+    - cron: '0 2 * * *'
+    - cron: '0 14 * * 1-5'
+  push:
+    branches-ignore: ['wip/**']
+    paths:
+      - 'src/**'
+      - 'go.mod'
+      - '!src/**/*.md'
+  workflow_dispatch:
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: make nightly
+  sweep:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - run: make sweep

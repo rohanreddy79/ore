@@ -1,0 +1,373 @@
+{
+  "version": "0",
+  "id": ".github/workflows/go-ci.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 (matches(event.ref_name, '^main$')) \u0026\u0026 event.paths.exists(p, !(matches(p, '^docs/.*$') || matches(p, '^.*\\.md$')))) || (event.type == 'io.ore.change.patchset.pushed' \u0026\u0026 (matches(event.change.target_ref_name, '^main$')))"
+    },
+    "events": [
+      {
+        "name": "push",
+        "branches": [
+          "main"
+        ],
+        "paths_ignore": [
+          "docs/**",
+          "**.md"
+        ]
+      },
+      {
+        "name": "pull_request",
+        "branches": [
+          "main"
+        ]
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "go-ci/test",
+      "name": "Test",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-go@v5",
+            "repository": "actions/setup-go",
+            "sha": "0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/upload-artifact@v4",
+            "repository": "actions/upload-artifact",
+            "sha": "b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {
+            "GOFLAGS": "-mod=readonly"
+          },
+          "fail_fast": true,
+          "job": "test",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "go-ci",
+          "workflow_name": "Go CI"
+        },
+        "caches": [
+          {
+            "key": "setup-go-${{ runner.os }}-go-file-${{ hashFiles('**/go.sum') }}",
+            "restore_keys": [
+              "setup-go-${{ runner.os }}-go-"
+            ],
+            "paths": [
+              "~/go/pkg/mod",
+              "~/.cache/go-build"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "actions/setup-go@v5",
+          "with": {
+            "cache": "true",
+            "go-version-file": "go.mod"
+          }
+        },
+        {
+          "name": "Vet",
+          "run": "go vet ./..."
+        },
+        {
+          "name": "Test",
+          "run": "go test -race -coverprofile=coverage.out ./..."
+        },
+        {
+          "name": "Upload coverage",
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "name": "coverage",
+            "path": "coverage.out",
+            "retention-days": "7"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {
+            "name": "coverage",
+            "paths": [
+              "coverage.out"
+            ]
+          }
+        ],
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 900
+      },
+      "permissions": {
+        "contents": "read"
+      },
+      "content_hash": "sha256:864b20b9325b8cf17628e59548b0276b96dc6a456659252832acadc4e813cc9d"
+    },
+    {
+      "id": "go-ci/lint",
+      "name": "lint",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-go@v5",
+            "repository": "actions/setup-go",
+            "sha": "0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "golangci/golangci-lint-action@v6",
+            "repository": "golangci/golangci-lint-action",
+            "sha": "971e284b6050e8a5849b72094c50ab08da042db8",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {
+            "GOFLAGS": "-mod=readonly"
+          },
+          "fail_fast": true,
+          "job": "lint",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "go-ci",
+          "workflow_name": "Go CI"
+        },
+        "caches": [
+          {
+            "key": "setup-go-${{ runner.os }}-go-1.25-${{ hashFiles('**/go.sum') }}",
+            "restore_keys": [
+              "setup-go-${{ runner.os }}-go-"
+            ],
+            "paths": [
+              "~/go/pkg/mod",
+              "~/.cache/go-build"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "actions/setup-go@v5",
+          "with": {
+            "go-version": "1.25"
+          }
+        },
+        {
+          "uses": "golangci/golangci-lint-action@v6",
+          "with": {
+            "version": "v1.60"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "permissions": {
+        "contents": "read"
+      },
+      "content_hash": "sha256:7f03835741ec9617190e966b769408a43cac7f26ca85d834c993be85cc3793f5"
+    },
+    {
+      "id": "go-ci/build",
+      "name": "build",
+      "needs": [
+        "go-ci/test",
+        "go-ci/lint"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-go@v5",
+            "repository": "actions/setup-go",
+            "sha": "0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/upload-artifact@v4",
+            "repository": "actions/upload-artifact",
+            "sha": "b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {
+            "GOFLAGS": "-mod=readonly"
+          },
+          "fail_fast": true,
+          "job": "build",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "go-ci",
+          "workflow_name": "Go CI"
+        },
+        "caches": [
+          {
+            "key": "setup-go-${{ runner.os }}-go-1.25-${{ hashFiles('**/go.sum') }}",
+            "restore_keys": [
+              "setup-go-${{ runner.os }}-go-"
+            ],
+            "paths": [
+              "~/go/pkg/mod",
+              "~/.cache/go-build"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "actions/setup-go@v5",
+          "with": {
+            "go-version": "1.25"
+          }
+        },
+        {
+          "run": "CGO_ENABLED=0 go build -trimpath -o bin/app ./cmd/app"
+        },
+        {
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "name": "app-linux-amd64",
+            "path": "bin/app"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {
+            "name": "app-linux-amd64",
+            "paths": [
+              "bin/app"
+            ]
+          }
+        ],
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "permissions": {
+        "contents": "read"
+      },
+      "content_hash": "sha256:d0667788a354a38420709534f7848652f7adffd73d80e95cc9b41ab50098d93b"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/go-ci.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "uses.unsupported-action",
+        "message": "golangci/golangci-lint-action@v6 is not implemented natively on Ore v0; the step is skipped at run time and recorded here",
+        "location": "jobs.lint.steps[2]"
+      }
+    ]
+  }
+}

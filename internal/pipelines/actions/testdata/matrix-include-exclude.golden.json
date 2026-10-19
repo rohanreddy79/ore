@@ -1,0 +1,358 @@
+{
+  "version": "0",
+  "id": ".github/workflows/matrix-include-exclude.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated')"
+    },
+    "events": [
+      {
+        "name": "push"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "matrix-include-exclude/build/os=ubuntu-latest,go=1.24,experimental=false",
+      "name": "build (ubuntu-latest, 1.24, false)",
+      "matrix_key": {
+        "experimental": false,
+        "go": "1.24",
+        "os": "ubuntu-latest"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "continue_on_error": false,
+          "env": {},
+          "fail_fast": false,
+          "job": "build",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 0,
+            "job-total": 5,
+            "max-parallel": 2
+          },
+          "workflow": "matrix-include-exclude",
+          "workflow_name": "Matrix"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Go 1.24 on ubuntu-latest",
+          "run": "echo \"go=1.24 os=ubuntu-latest coverage= experimental=false index=0/5\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:be431fa21a9ceb3c0efb719ec249a7a81114e84ac359e9c2f8a681741c5f1574"
+    },
+    {
+      "id": "matrix-include-exclude/build/os=ubuntu-latest,go=1.25,experimental=false,coverage=yes",
+      "name": "build (ubuntu-latest, 1.25, false, yes)",
+      "matrix_key": {
+        "coverage": "yes",
+        "experimental": false,
+        "go": "1.25",
+        "os": "ubuntu-latest"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "continue_on_error": false,
+          "env": {},
+          "fail_fast": false,
+          "job": "build",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 1,
+            "job-total": 5,
+            "max-parallel": 2
+          },
+          "workflow": "matrix-include-exclude",
+          "workflow_name": "Matrix"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Go 1.25 on ubuntu-latest",
+          "run": "echo \"go=1.25 os=ubuntu-latest coverage=yes experimental=false index=1/5\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:c20812c7819882407430c40207a60c5c7c1a4a64fcba1d0c00379f01d7a95aab"
+    },
+    {
+      "id": "matrix-include-exclude/build/os=ubuntu-22.04,go=1.24,experimental=false",
+      "name": "build (ubuntu-22.04, 1.24, false)",
+      "matrix_key": {
+        "experimental": false,
+        "go": "1.24",
+        "os": "ubuntu-22.04"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-22.04"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "continue_on_error": false,
+          "env": {},
+          "fail_fast": false,
+          "job": "build",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 2,
+            "job-total": 5,
+            "max-parallel": 2
+          },
+          "workflow": "matrix-include-exclude",
+          "workflow_name": "Matrix"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Go 1.24 on ubuntu-22.04",
+          "run": "echo \"go=1.24 os=ubuntu-22.04 coverage= experimental=false index=2/5\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-22.04"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:df436cd3698456643e4b17d8949bf11025796233b22e10408f8c718f478f0a6e"
+    },
+    {
+      "id": "matrix-include-exclude/build/os=macos-latest,go=1.25,experimental=false,coverage=yes",
+      "name": "build (macos-latest, 1.25, false, yes)",
+      "matrix_key": {
+        "coverage": "yes",
+        "experimental": false,
+        "go": "1.25",
+        "os": "macos-latest"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": ""
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "continue_on_error": false,
+          "env": {},
+          "fail_fast": false,
+          "job": "build",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 3,
+            "job-total": 5,
+            "max-parallel": 2
+          },
+          "workflow": "matrix-include-exclude",
+          "workflow_name": "Matrix"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Go 1.25 on macos-latest",
+          "run": "echo \"go=1.25 os=macos-latest coverage=yes experimental=false index=3/5\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "macos",
+        "arch": "x64",
+        "labels": [
+          "macos-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:448d8d513d0cfcfb9ad9b61b4f6b3f0b2d7110fef3123234d17f5af04fd58721"
+    },
+    {
+      "id": "matrix-include-exclude/build/os=ubuntu-latest,go=tip,experimental=true",
+      "name": "build (ubuntu-latest, tip, true)",
+      "matrix_key": {
+        "experimental": true,
+        "go": "tip",
+        "os": "ubuntu-latest"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "continue_on_error": true,
+          "env": {},
+          "fail_fast": false,
+          "job": "build",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 4,
+            "job-total": 5,
+            "max-parallel": 2
+          },
+          "workflow": "matrix-include-exclude",
+          "workflow_name": "Matrix"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Go tip on ubuntu-latest",
+          "run": "echo \"go=tip os=ubuntu-latest coverage= experimental=true index=4/5\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:887da81f5ab465bf93488e3a4b10fd3d4c1863005c63a681ce70e659a71d181d"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/matrix-include-exclude.yml",
+    "compiler_version": "0.1.0",
+    "divergences": [
+      {
+        "code": "runs-on.unsupported-os",
+        "message": "runs-on macos-latest: Ore v0 runs linux containers only; the job is skipped",
+        "location": "jobs.build.runs-on"
+      }
+    ]
+  }
+}

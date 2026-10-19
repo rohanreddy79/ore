@@ -1,0 +1,144 @@
+{
+  "version": "0",
+  "id": ".github/workflows/outputs-env-summary.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated')"
+    },
+    "events": [
+      {
+        "name": "push"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "outputs-env-summary/produce",
+      "name": "produce",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "produce",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "outputs-env-summary",
+          "workflow_name": "Outputs"
+        },
+        "secrets": [
+          {
+            "path": "repos/acme/app/secrets/API_KEY",
+            "mount": "env",
+            "name": "API_KEY"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "id": "count",
+          "run": "echo \"count=3\" \u003e\u003e \"$GITHUB_OUTPUT\"\n{\n  echo \"report\u003c\u003cEOF\"\n  echo \"line one\"\n  echo \"line two\"\n  echo \"EOF\"\n} \u003e\u003e \"$GITHUB_OUTPUT\"\necho \"BUILD_DATE=$(date -u +%F)\" \u003e\u003e \"$GITHUB_ENV\"\necho \"$HOME/.local/bin\" \u003e\u003e \"$GITHUB_PATH\"\necho \"::add-mask::${{ secrets.API_KEY }}\"\necho \"::notice file=main.go,line=1::compiled\"\necho \"::warning::deprecated flag\"\n"
+        },
+        {
+          "run": "echo \"built on $BUILD_DATE with ${{ steps.count.outputs.count }} items\"\necho \"::set-output name=legacy::value\"\necho \"::group::details\"\necho \"${{ steps.count.outputs.report }}\"\necho \"::endgroup::\"\n"
+        },
+        {
+          "name": "Summary",
+          "run": "echo \"### Results\" \u003e\u003e \"$GITHUB_STEP_SUMMARY\"\necho \"| items | ${{ steps.count.outputs.count }} |\" \u003e\u003e \"$GITHUB_STEP_SUMMARY\"\n"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "values": {
+          "count": "${{ steps.count.outputs.count }}",
+          "multiline": "${{ steps.count.outputs.report }}"
+        },
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:c06fe77eccfba5fdd988ef90e642af8e88a51cf28c2e98db80185ff32a24d1a3"
+    },
+    {
+      "id": "outputs-env-summary/consume",
+      "name": "consume",
+      "needs": [
+        "outputs-env-summary/produce"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "consume",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "outputs-env-summary",
+          "workflow_name": "Outputs"
+        }
+      },
+      "steps": [
+        {
+          "run": "echo \"${{ needs.produce.outputs.count }} / ${{ needs.produce.outputs.multiline }}\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:66bd866dfb8d840467fe839bd9d9613978d8b599e8b81c3ebbe9799b097dbbb9"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/outputs-env-summary.yml",
+    "compiler_version": "0.1.0",
+    "divergences": []
+  }
+}

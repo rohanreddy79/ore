@@ -1,0 +1,325 @@
+{
+  "version": "0",
+  "id": ".github/workflows/node-ci.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 (matches(event.ref_name, '^main$') || matches(event.ref_name, '^release/.*$'))) || (event.type == 'io.ore.change.patchset.pushed')"
+    },
+    "events": [
+      {
+        "name": "push",
+        "branches": [
+          "main",
+          "release/**"
+        ]
+      },
+      {
+        "name": "pull_request"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "node-ci/test/node-version=18.x",
+      "name": "Node 18.x",
+      "matrix_key": {
+        "node-version": "18.x"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-node@v4",
+            "repository": "actions/setup-node",
+            "sha": "39370e3970a6d050fe5d0e2d3f6f5f4d9c8e3b3c",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": false,
+          "job": "test",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 0,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "node-ci",
+          "workflow_name": "Node CI"
+        },
+        "caches": [
+          {
+            "key": "setup-node-${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml') }}",
+            "restore_keys": [
+              "setup-node-${{ runner.os }}-npm-"
+            ],
+            "paths": [
+              "~/.npm"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Use Node.js 18.x",
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "cache": "npm",
+            "node-version": "18.x"
+          }
+        },
+        {
+          "run": "npm ci"
+        },
+        {
+          "run": "npm run build --if-present"
+        },
+        {
+          "run": "npm test",
+          "env": {
+            "CI": "true",
+            "NODE_OPTIONS": "--max-old-space-size=4096"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:d57e0f66ec3c9960c01419f2b06843a05e9873832d65484d5ad297952a7cbf6f"
+    },
+    {
+      "id": "node-ci/test/node-version=20.x",
+      "name": "Node 20.x",
+      "matrix_key": {
+        "node-version": "20.x"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-node@v4",
+            "repository": "actions/setup-node",
+            "sha": "39370e3970a6d050fe5d0e2d3f6f5f4d9c8e3b3c",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": false,
+          "job": "test",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 1,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "node-ci",
+          "workflow_name": "Node CI"
+        },
+        "caches": [
+          {
+            "key": "setup-node-${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml') }}",
+            "restore_keys": [
+              "setup-node-${{ runner.os }}-npm-"
+            ],
+            "paths": [
+              "~/.npm"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Use Node.js 20.x",
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "cache": "npm",
+            "node-version": "20.x"
+          }
+        },
+        {
+          "run": "npm ci"
+        },
+        {
+          "run": "npm run build --if-present"
+        },
+        {
+          "run": "npm test",
+          "env": {
+            "CI": "true",
+            "NODE_OPTIONS": "--max-old-space-size=4096"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:5dc4207bfd857a93a7cef2498037bbcb26a0bfcfc4786d556b1fb663f7e7580c"
+    },
+    {
+      "id": "node-ci/test/node-version=22.x",
+      "name": "Node 22.x",
+      "matrix_key": {
+        "node-version": "22.x"
+      },
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          },
+          {
+            "ref": "actions/setup-node@v4",
+            "repository": "actions/setup-node",
+            "sha": "39370e3970a6d050fe5d0e2d3f6f5f4d9c8e3b3c",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": false,
+          "job": "test",
+          "strategy": {
+            "fail-fast": false,
+            "job-index": 2,
+            "job-total": 3,
+            "max-parallel": 1
+          },
+          "workflow": "node-ci",
+          "workflow_name": "Node CI"
+        },
+        "caches": [
+          {
+            "key": "setup-node-${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml') }}",
+            "restore_keys": [
+              "setup-node-${{ runner.os }}-npm-"
+            ],
+            "paths": [
+              "~/.npm"
+            ],
+            "scope": "internal"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "name": "Use Node.js 22.x",
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "cache": "npm",
+            "node-version": "22.x"
+          }
+        },
+        {
+          "run": "npm ci"
+        },
+        {
+          "run": "npm run build --if-present"
+        },
+        {
+          "run": "npm test",
+          "env": {
+            "CI": "true",
+            "NODE_OPTIONS": "--max-old-space-size=4096"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:22c64e06c7cfc084e4f8dd96cb2506dcdbc9d9774ef52b13058bf4e8e39f6bf8"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/node-ci.yml",
+    "compiler_version": "0.1.0",
+    "divergences": []
+  }
+}

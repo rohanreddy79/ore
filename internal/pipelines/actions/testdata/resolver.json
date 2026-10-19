@@ -1,0 +1,3 @@
+{
+  "_comment": "Fixture SHAs for the conformance corpus (see helpers_test.go fixtureResolver); the compiler records the SHA and the resolution kind of every uses: reference."
+}

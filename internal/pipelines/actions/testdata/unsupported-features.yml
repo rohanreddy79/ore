@@ -1,0 +1,71 @@
+name: Kitchen sink
+on:
+  pull_request_target:
+    types: [labeled]
+  issues:
+    types: [opened]
+  push:
+defaults:
+  run:
+    shell: bash
+    working-directory: app
+jobs:
+  cross-platform:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+      - run: go test ./...
+      - run: Write-Host "powershell"
+        shell: pwsh
+  with-services:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.25
+      options: --cpus 2
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: acme/other
+          ref: develop
+          submodules: recursive
+          path: other
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({ body: 'hi' })
+      - uses: docker://alpine:3.19
+        with:
+          args: echo hello
+      - uses: ./.github/actions/setup
+      - run: psql -h postgres -c 'select 1'
+        env:
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          ALL: ${{ toJSON(secrets) }}
+          VAR: ${{ vars.REGION }}
+  self-hosted:
+    runs-on: [self-hosted, linux, gpu]
+    concurrency:
+      group: gpu
+    steps:
+      - run: nvidia-smi
+  dynamic:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    needs: with-services
+    steps:
+      - run: echo dynamic
+    unknown-key: true

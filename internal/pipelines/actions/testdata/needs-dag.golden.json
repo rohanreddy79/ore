@@ -1,0 +1,340 @@
+{
+  "version": "0",
+  "id": ".github/workflows/needs-dag.yml",
+  "repository": {
+    "id": "repo_CORPUS",
+    "org_id": "org_CORPUS"
+  },
+  "trigger": {
+    "event": "io.ore.ref.updated",
+    "filters": {
+      "cel": "(event.type == 'io.ore.ref.updated' \u0026\u0026 (matches(event.ref_name, '^main$'))) || (event.type == 'io.ore.change.patchset.pushed')"
+    },
+    "events": [
+      {
+        "name": "push",
+        "branches": [
+          "main"
+        ]
+      },
+      {
+        "name": "pull_request"
+      }
+    ]
+  },
+  "policy_context": {
+    "ref_trust": "internal"
+  },
+  "tasks": [
+    {
+      "id": "needs-dag/build",
+      "name": "build",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "build",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "needs-dag",
+          "workflow_name": "Pipeline"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "id": "meta",
+          "run": "echo \"version=$(git describe --always)\" \u003e\u003e \"$GITHUB_OUTPUT\"\necho \"image=ghcr.io/acme/app:${GITHUB_SHA::7}\" \u003e\u003e \"$GITHUB_OUTPUT\"\n"
+        },
+        {
+          "run": "make build"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "values": {
+          "image": "${{ steps.meta.outputs.image }}",
+          "version": "${{ steps.meta.outputs.version }}"
+        },
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:0654d5fbbb59aa11187098fbfb006a340bcb8212fee5c1bb1f312947a3d6d721"
+    },
+    {
+      "id": "needs-dag/unit",
+      "name": "unit",
+      "needs": [
+        "needs-dag/build"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "unit",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "needs-dag",
+          "workflow_name": "Pipeline"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "run": "make test-unit"
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:6b8de4eb733f02a604bf04ff85d186995a26bb184413ca55591400af6627f631"
+    },
+    {
+      "id": "needs-dag/integration",
+      "name": "integration",
+      "needs": [
+        "needs-dag/build"
+      ],
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "actions": [
+          {
+            "ref": "actions/checkout@v4",
+            "repository": "actions/checkout",
+            "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+            "resolution": "tag-mutable-resolved"
+          }
+        ],
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "integration",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "needs-dag",
+          "workflow_name": "Pipeline"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "run": "make test-integration",
+          "env": {
+            "APP_VERSION": "${{ needs.build.outputs.version }}"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:b24a5bd2053c477beb2fc5a865a2f23d66977351f92f5a055e77aa2976d749c3"
+    },
+    {
+      "id": "needs-dag/deploy",
+      "name": "deploy",
+      "needs": [
+        "needs-dag/unit",
+        "needs-dag/integration"
+      ],
+      "condition": "github.ref == 'refs/heads/main' \u0026\u0026 github.event_name == 'push'",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "environment": "production",
+          "environment_url": "https://app.example.com",
+          "fail_fast": true,
+          "job": "deploy",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "needs-dag",
+          "workflow_name": "Pipeline"
+        },
+        "secrets": [
+          {
+            "path": "repos/acme/app/secrets/DEPLOY_TOKEN",
+            "mount": "env",
+            "name": "DEPLOY_TOKEN"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "run": "./deploy.sh ${{ needs.build.outputs.image }}",
+          "env": {
+            "DEPLOY_TOKEN": "${{ secrets.DEPLOY_TOKEN }}"
+          }
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:897762fe8f0fc7b435e32afed4414398ab3322b4747a6273d66f5b109822b191"
+    },
+    {
+      "id": "needs-dag/notify",
+      "name": "notify",
+      "needs": [
+        "needs-dag/build",
+        "needs-dag/unit",
+        "needs-dag/integration",
+        "needs-dag/deploy"
+      ],
+      "condition": "always()",
+      "inputs": {
+        "source": {
+          "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8",
+          "submodules": "none"
+        },
+        "image": {
+          "ref": "ghcr.io/catthehacker/ubuntu:act-latest"
+        },
+        "params": {
+          "env": {},
+          "fail_fast": true,
+          "job": "notify",
+          "strategy": {
+            "fail-fast": true,
+            "job-index": 0,
+            "job-total": 1,
+            "max-parallel": 1
+          },
+          "workflow": "needs-dag",
+          "workflow_name": "Pipeline"
+        }
+      },
+      "steps": [
+        {
+          "run": "echo \"build=${{ needs.build.result }} unit=${{ needs.unit.result }} integration=${{ needs.integration.result }} deploy=${{ needs.deploy.result }}\""
+        }
+      ],
+      "executor": {
+        "kind": "docker",
+        "os": "linux",
+        "arch": "x64",
+        "labels": [
+          "ubuntu-latest"
+        ]
+      },
+      "outputs": {
+        "summary": true
+      },
+      "limits": {
+        "timeout_seconds": 21600
+      },
+      "content_hash": "sha256:1c8ebb835dd09e0312e5b320fe41e03699ff103fe292a6430439616a1c40bd4c"
+    }
+  ],
+  "source": {
+    "frontend": "actions-yaml",
+    "path": ".github/workflows/needs-dag.yml",
+    "compiler_version": "0.1.0",
+    "divergences": []
+  }
+}
