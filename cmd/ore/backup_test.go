@@ -383,8 +383,13 @@ func TestInstallScript(t *testing.T) {
 	if _, err := exec.LookPath("curl"); err != nil {
 		t.Skip("no curl")
 	}
+	// release.sh is a bash script (set -o pipefail); install.sh is POSIX sh.
+	// On Debian and Ubuntu sh is dash, so the two must not be run the same way.
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash")
+	}
 	dist := filepath.Join(t.TempDir(), "dist")
-	rel := exec.Command("sh", "../../scripts/release.sh", "--only", "host", "--out", dist)
+	rel := exec.Command("bash", "../../scripts/release.sh", "--only", "host", "--out", dist)
 	rel.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := rel.CombinedOutput(); err != nil {
 		t.Fatalf("release.sh: %v\n%s", err, out)
@@ -399,14 +404,17 @@ func TestInstallScript(t *testing.T) {
 		out, err := cmd.CombinedOutput()
 		return string(out), err
 	}
-	out, err := run()
+	// The directory is pinned: install.sh prefers /usr/local/bin whenever it is
+	// writable (root, some Homebrew setups), which would put the binary on the
+	// real system and fail the check below.
+	bin := filepath.Join(home, ".local", "bin", "ore")
+	out, err := run("ORE_INSTALL_DIR=" + filepath.Dir(bin))
 	if err != nil {
 		t.Fatalf("install: %v\n%s", err, out)
 	}
 	if !strings.Contains(out, "checksum verified") || !strings.Contains(out, "installed ore 0.1.0") {
 		t.Fatalf("install output:\n%s", out)
 	}
-	bin := filepath.Join(home, ".local", "bin", "ore")
 	if v, err := exec.Command(bin, "version").Output(); err != nil || strings.TrimSpace(string(v)) != "ore 0.1.0" {
 		t.Fatalf("installed binary: %v %q", err, v)
 	}
