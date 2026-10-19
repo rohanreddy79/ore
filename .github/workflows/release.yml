@@ -1,0 +1,95 @@
+# On a v* tag: build the web app, run scripts/release.sh (four static binaries
+# with the version stamped and the web app embedded, SHA256SUMS, CHANGELOG.md,
+# VERSION, install.sh) and publish the lot as the GitHub release for that tag.
+# The container image is not built here; see deploy/RELEASING.md.
+#
+# "Run workflow" (workflow_dispatch) on any branch is a dry run: it builds and
+# smoke-tests the artifacts and attaches them to the workflow run, but creates
+# no release.
+#
+# Every action is pinned to a full commit SHA (the version is in the comment);
+# bump the SHA and the comment together.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the release and upload its assets
+    steps:
+      - name: Check out with full history (the changelog is the log since the previous tag)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check that the tag matches VERSION
+        if: github.event_name == 'push'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "$tag" != "$version" ]; then
+            echo "tag v$tag does not match VERSION ($version); bump VERSION first" >&2
+            exit 1
+          fi
+
+      - name: Set up Go from go.mod (caches the module and build caches on go.sum)
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up Node 22 (caches ~/.npm on ui/package-lock.json)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build the web app (embedded in every binary)
+        working-directory: ui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Build the release artifacts
+        run: scripts/release.sh
+
+      - name: Smoke-test the linux/amd64 archive and the checksums
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          tar -xzf "dist/ore_${version}_linux_amd64.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/ore_${version}_linux_amd64/ore" version
+          (cd dist && sha256sum -c SHA256SUMS)
+
+      - name: Attach the artifacts to the workflow run
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ore-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Ore ${GITHUB_REF_NAME#v}" \
+            --notes-file dist/CHANGELOG.md \
+            --verify-tag \
+            dist/*.tar.gz dist/SHA256SUMS dist/VERSION dist/install.sh dist/CHANGELOG.md
