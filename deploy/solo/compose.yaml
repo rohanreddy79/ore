@@ -1,0 +1,24 @@
+# Solo/team profile: one container for Ore (git, API, UI, pipelines control plane, agent loop)
+# and the Docker socket for container pipelines and deployments. v0 has no Forgejo or Postgres:
+# the repository core is native (ADR 0013) and the ledger is SQLite on a volume.
+#
+# Build the image from this repository first:  docker build -t ore:local -f deploy/Dockerfile .
+
+name: ore
+
+services:
+  ore:
+    image: ore:local
+    command: ["serve", "--data", "/data", "--addr", ":7777", "--executor", "docker", "--public-host", "${ORE_PUBLIC_HOST:-localhost}"]
+    environment:
+      ORE_TOKEN: ${ORE_TOKEN:-}                 # leave empty to generate one (printed on first start, stored in /data/token)
+      ORE_AGENT_CMD: ${ORE_AGENT_CMD:-}         # e.g. claude -p "$ORE_PROMPT" --permission-mode acceptEdits
+      ORE_AGENT_NAME: ${ORE_AGENT_NAME:-claude-code}
+    ports:
+      - "7777:7777"
+    volumes:
+      - ore-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock   # pipelines and deployments run as sibling containers
+
+volumes:
+  ore-data:

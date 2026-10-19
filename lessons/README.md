@@ -1,0 +1,1 @@
+# lessons — the built-in curriculum (CC BY-SA 4.0): six tracks, each lesson a template + a lesson pipeline (assert/advance/hint), in ten launch languages, run end to end in CI before release. See docs/06.

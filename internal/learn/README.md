@@ -1,0 +1,1 @@
+# internal/learn — lesson engine (assert/advance/hint tasks), lesson runs, onboarding checklist, learn-at-the-error catalog, tutor gateway, Q&A endorsement, credentials (Open Badges 3.0), localization bundles. Phase 1/2. See docs/06 and ADR 0010.

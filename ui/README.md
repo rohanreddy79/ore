@@ -1,0 +1,1 @@
+# ui — the web application: TypeScript, React, CodeMirror 6, windowed diffs, SSE, HTTP-shape sync, Loro for shared text. Performance budgets are CI tests (p95 render of a 20k-line change < 200 ms). AGPL-3.0.

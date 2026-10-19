@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ore.invalid/spec/safe-outputs/v0",
+  "title": "Ore safe-outputs request v0",
+  "description": "The only way an agent session can write. Each request is validated against this schema, checked against policy (Cedar), rate-limited per type and per agent, executed with a separately scoped credential, and recorded on the ledger with the agent and session ids. Requests outside the session's repository scope are refused. Writes that would trigger the same agent are refused unless the repository policy allows loops.",
+  "type": "object",
+  "required": ["version", "session", "requests"],
+  "properties": {
+    "version": { "const": "0" },
+    "session": { "type": "object", "required": ["agent_id", "session_id", "repository_id"], "properties": { "agent_id": { "type": "string" }, "session_id": { "type": "string" }, "repository_id": { "type": "string" } } },
+    "requests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "oneOf": [
+          { "type": "object", "required": ["kind", "target", "body"], "properties": { "kind": { "const": "comment" }, "target": { "type": "string", "description": "issue or change id" }, "body": { "type": "string", "maxLength": 65536 } }, "additionalProperties": false },
+          { "type": "object", "required": ["kind", "target", "add"], "properties": { "kind": { "const": "label" }, "target": { "type": "string" }, "add": { "type": "array", "items": { "type": "string" } }, "remove": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false },
+          { "type": "object", "required": ["kind", "title", "body"], "properties": { "kind": { "const": "open_issue" }, "title": { "type": "string", "maxLength": 256 }, "body": { "type": "string" }, "labels": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false },
+          { "type": "object", "required": ["kind", "branch", "title", "body", "provenance"], "properties": { "kind": { "const": "open_change" }, "branch": { "type": "string" }, "base": { "type": "string" }, "title": { "type": "string" }, "body": { "type": "string" }, "draft": { "type": "boolean", "default": true }, "provenance": { "$ref": "#/$defs/Provenance" } }, "additionalProperties": false },
+          { "type": "object", "required": ["kind", "branch", "bundle", "provenance"], "properties": { "kind": { "const": "push" }, "branch": { "type": "string", "description": "Must be a branch the agent created in this session; never a protected ref." }, "bundle": { "type": "string", "description": "Object-store reference to a git bundle produced in the sandbox." }, "provenance": { "$ref": "#/$defs/Provenance" } }, "additionalProperties": false },
+          { "type": "object", "required": ["kind", "target", "findings"], "properties": { "kind": { "const": "review" }, "target": { "type": "string" }, "verdict": { "enum": ["comment", "request_changes", "approve"], "description": "`approve` counts toward required reviews only if the repository policy allows agent approvals (default: never)." }, "findings": { "type": "array", "items": { "$ref": "#/$defs/Finding" } } }, "additionalProperties": false },
+          { "type": "object", "required": ["kind", "target", "reviewers"], "properties": { "kind": { "const": "request_review" }, "target": { "type": "string" }, "reviewers": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false },
+          { "type": "object", "required": ["kind", "release", "environment"], "properties": { "kind": { "const": "request_deployment" }, "release": { "type": "string" }, "environment": { "type": "string", "description": "Creates a deployment *request*; approvals and policy still apply." } }, "additionalProperties": false }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "Provenance": {
+      "type": "object",
+      "required": ["author_kind", "agent_id", "model"],
+      "properties": {
+        "author_kind": { "enum": ["agent", "human_with_agent"] },
+        "agent_id": { "type": "string" },
+        "model": { "type": "string", "description": "Vendor/model identifier as reported by the agent." },
+        "session_id": { "type": "string" },
+        "prompt_hash": { "type": "string" },
+        "human_owner": { "type": "string", "description": "User id accountable for the change." }
+      }
+    },
+    "Finding": {
+      "type": "object",
+      "required": ["severity", "confidence", "path", "message"],
+      "properties": {
+        "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "category": { "type": "string" },
+        "path": { "type": "string" },
+        "range": { "type": "object", "properties": { "start_line": { "type": "integer" }, "end_line": { "type": "integer" } } },
+        "message": { "type": "string" },
+        "suggested_fix": { "type": "string", "description": "A unified diff the reviewer can apply in one click." },
+        "fingerprint": { "type": "string", "description": "Stable across patch sets so findings persist and duplicates cluster." }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+# internal/pipelines — planner (YAML → IR), scheduler, dispatcher, Runner Protocol server, CAS/cache with trust scopes, secrets enclave, OIDC issuer, log ingest. Phase 0/1. See docs/04 Part A and ADRs 0003, 0004, 0012.

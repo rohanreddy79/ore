@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ore.invalid/spec/pipeline-ir/v0",
+  "title": "Ore Pipeline IR v0",
+  "description": "A typed, content-addressed DAG of tasks. Authoring front-ends (GitHub Actions YAML compiler, GitLab CI compiler, SDKs, visual builder) emit this; the control plane plans, caches, schedules and bills from it. Every reference to code or an image is resolved to an immutable digest before the IR is considered complete.",
+  "type": "object",
+  "required": ["version", "id", "repository", "trigger", "tasks"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": "0" },
+    "id": { "type": "string", "description": "Stable pipeline id within the repository (e.g. the workflow path or an SDK-declared name)." },
+    "repository": { "$ref": "#/$defs/RepositoryRef" },
+    "trigger": { "$ref": "#/$defs/Trigger" },
+    "concurrency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "group": { "type": "string" },
+        "cancel_in_progress": { "type": "boolean", "default": false }
+      }
+    },
+    "policy_context": {
+      "type": "object",
+      "description": "Facts the planner attaches for policy evaluation; never authored by hand.",
+      "properties": {
+        "actor_kind": { "enum": ["human", "app", "agent", "system"] },
+        "ref_trust": { "enum": ["default", "protected", "internal", "fork"] },
+        "provenance_has_agent_hunks": { "type": "boolean" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "description": "Optional binding to a delivery Environment; approvals and wait timers come from the environment's policy.",
+      "required": ["id"],
+      "properties": { "id": { "type": "string" } }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Task" }
+    },
+    "source": {
+      "type": "object",
+      "description": "Where this IR came from, for diagnostics and the conformance suite.",
+      "properties": {
+        "frontend": { "enum": ["actions-yaml", "gitlab-yaml", "sdk-ts", "sdk-py", "sdk-go", "builder", "lesson"] },
+        "path": { "type": "string" },
+        "compiler_version": { "type": "string" },
+        "divergences": {
+          "type": "array",
+          "description": "Features of the source the compiler could not map exactly; surfaced in the UI with a Learn-why link.",
+          "items": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "location": { "type": "string" } } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "RepositoryRef": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "description": "Immutable repository id (not the name)." },
+        "org_id": { "type": "string" }
+      }
+    },
+    "Trigger": {
+      "type": "object",
+      "required": ["event"],
+      "properties": {
+        "event": { "type": "string", "description": "Ledger event type, e.g. io.ore.ref.updated, io.ore.change.opened, io.ore.schedule.fired, io.ore.pipeline.dispatch" },
+        "filters": { "type": "object", "description": "CEL expression(s) over the event; compiled from branches/paths/types filters." , "properties": { "cel": { "type": "string" } } },
+        "inputs": { "type": "object", "description": "Declared inputs for manual dispatch.", "additionalProperties": { "type": "object", "properties": { "type": { "enum": ["string", "boolean", "number", "choice"] }, "default": {}, "options": { "type": "array" }, "required": { "type": "boolean" } } } }
+      }
+    },
+    "Digest": { "type": "string", "pattern": "^(sha256|sha1|sha512):[0-9a-f]+$" },
+    "Task": {
+      "type": "object",
+      "required": ["id", "inputs", "steps", "executor"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "needs": { "type": "array", "items": { "type": "string" }, "description": "Task ids this task depends on (DAG edges)." },
+        "condition": { "type": "string", "description": "CEL expression over the run context; the task is skipped when false." },
+        "matrix_key": { "type": "object", "description": "The matrix coordinates this task instance was expanded from, if any.", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "inputs": { "$ref": "#/$defs/Inputs" },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
+        "executor": { "$ref": "#/$defs/Executor" },
+        "outputs": { "$ref": "#/$defs/Outputs" },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "timeout_seconds": { "type": "integer", "minimum": 1, "default": 21600 },
+            "retries": { "type": "integer", "minimum": 0, "default": 0 },
+            "budget_vcpu_minutes": { "type": "number", "minimum": 0 }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "description": "Capabilities granted to the per-job token; compiled from Actions `permissions:` and narrowed by policy.",
+          "additionalProperties": { "enum": ["none", "read", "write"] }
+        },
+        "content_hash": { "$ref": "#/$defs/Digest", "description": "Hash over resolved inputs, steps and executor; identical hashes within a trust scope are cache hits. Computed by the planner, never authored." }
+      }
+    },
+    "Inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "object",
+          "required": ["commit"],
+          "properties": {
+            "commit": { "type": "string", "description": "Object id of the commit (SHA-1 or SHA-256 hex)." },
+            "paths": { "type": "array", "items": { "type": "string" }, "description": "Sparse-checkout patterns; empty means full tree." },
+            "submodules": { "enum": ["none", "shallow", "recursive"], "default": "none" },
+            "lfs": { "type": "boolean", "default": false }
+          }
+        },
+        "image": {
+          "type": "object",
+          "required": ["ref", "digest"],
+          "properties": { "ref": { "type": "string" }, "digest": { "$ref": "#/$defs/Digest" } }
+        },
+        "actions": {
+          "type": "array",
+          "description": "Every `uses:` reference, resolved. The planner refuses references that are not ancestors in the referenced repository's protected history.",
+          "items": {
+            "type": "object",
+            "required": ["ref", "repository", "sha", "resolution"],
+            "properties": {
+              "ref": { "type": "string", "description": "As written by the author, e.g. actions/checkout@v4" },
+              "repository": { "type": "string" },
+              "sha": { "type": "string" },
+              "resolution": { "enum": ["sha-pinned", "tag-immutable", "tag-mutable-resolved", "branch-resolved", "vendored"] },
+              "vendored_digest": { "$ref": "#/$defs/Digest" }
+            }
+          }
+        },
+        "params": { "type": "object", "description": "Plain parameters; hashed into content_hash.", "additionalProperties": true },
+        "secrets": {
+          "type": "array",
+          "description": "Secrets by reference only; values are delivered into the sandbox over the secrets channel and never appear in the IR, logs or cache keys.",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "description": "Path in the OpenBao-compatible secrets store, e.g. env/production/DATABASE_URL" },
+              "mount": { "enum": ["env", "file"], "default": "env" },
+              "name": { "type": "string" }
+            }
+          }
+        },
+        "caches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key"],
+            "properties": {
+              "key": { "type": "string" },
+              "restore_keys": { "type": "array", "items": { "type": "string" } },
+              "paths": { "type": "array", "items": { "type": "string" } },
+              "scope": { "enum": ["default", "protected", "internal", "fork"], "description": "Write scope by trust level; a task may read from scopes at or above its own trust, and write only to its own." }
+            }
+          }
+        },
+        "artifacts_in": {
+          "type": "array",
+          "items": { "type": "object", "required": ["from_task", "name"], "properties": { "from_task": { "type": "string" }, "name": { "type": "string" }, "path": { "type": "string" } } }
+        },
+        "services": {
+          "type": "array",
+          "description": "Sidecar containers (databases, caches) available to the task.",
+          "items": { "type": "object", "required": ["name", "image", "digest"], "properties": { "name": { "type": "string" }, "image": { "type": "string" }, "digest": { "$ref": "#/$defs/Digest" }, "env": { "type": "object", "additionalProperties": { "type": "string" } }, "ports": { "type": "array", "items": { "type": "string" } } } }
+        }
+      }
+    },
+    "Step": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["run"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "run": { "type": "string" },
+            "shell": { "type": "string", "default": "bash" },
+            "working_directory": { "type": "string" },
+            "env": { "type": "object", "additionalProperties": { "type": "string" } },
+            "condition": { "type": "string" },
+            "continue_on_error": { "type": "boolean", "default": false },
+            "timeout_seconds": { "type": "integer" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["uses"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "uses": { "type": "string", "description": "Index into inputs.actions by the `ref` as written." },
+            "with": { "type": "object", "additionalProperties": true },
+            "env": { "type": "object", "additionalProperties": { "type": "string" } },
+            "condition": { "type": "string" },
+            "continue_on_error": { "type": "boolean", "default": false }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["lesson"],
+          "description": "Learning-engine task kinds (ADR 0010).",
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "lesson": {
+              "type": "object",
+              "required": ["kind"],
+              "properties": {
+                "kind": { "enum": ["assert", "advance", "hint"] },
+                "query": { "type": "string", "description": "For assert: a ledger query that must be satisfied (e.g. change with id X has a review by a member)." },
+                "step": { "type": "integer", "description": "For advance: the step to write next." },
+                "after_failures": { "type": "integer", "description": "For hint: show after N failed asserts." },
+                "text_key": { "type": "string", "description": "Localized text key for the step or hint." }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Executor": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["microvm", "gvisor", "docker", "host", "partner"] },
+        "os": { "enum": ["linux", "macos", "windows"], "default": "linux" },
+        "arch": { "enum": ["x64", "arm64"], "default": "x64" },
+        "size": { "type": "string", "description": "A size class name defined by the instance, e.g. s, m, l, gpu-s" },
+        "labels": { "type": "array", "items": { "type": "string" } },
+        "egress": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["allow-all", "allow-list", "deny-all"] },
+            "allow": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "Outputs": {
+      "type": "object",
+      "properties": {
+        "artifacts": { "type": "array", "items": { "type": "object", "required": ["name", "paths"], "properties": { "name": { "type": "string" }, "paths": { "type": "array", "items": { "type": "string" } }, "retention_days": { "type": "integer" } } } },
+        "caches": { "type": "array", "items": { "type": "object", "required": ["key", "paths"], "properties": { "key": { "type": "string" }, "paths": { "type": "array", "items": { "type": "string" } } } } },
+        "attestations": { "type": "array", "items": { "enum": ["slsa-build", "sbom-cyclonedx", "sbom-spdx", "test-results"] } },
+        "values": { "type": "object", "description": "Named string outputs for downstream tasks.", "additionalProperties": { "type": "string" } },
+        "summary": { "type": "boolean", "description": "Whether the task may write a Markdown job summary." }
+      }
+    }
+  }
+}

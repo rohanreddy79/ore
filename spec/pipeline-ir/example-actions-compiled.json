@@ -1,0 +1,34 @@
+{
+  "version": "0",
+  "id": ".ore/workflows/ci.yml",
+  "repository": { "id": "repo_01J9X", "org_id": "org_01J9W" },
+  "trigger": { "event": "io.ore.change.patchset.pushed", "filters": { "cel": "event.change.target_ref == 'refs/heads/main'" } },
+  "policy_context": { "actor_kind": "human", "ref_trust": "internal", "provenance_has_agent_hunks": false },
+  "tasks": [
+    {
+      "id": "test",
+      "name": "Test",
+      "inputs": {
+        "source": { "commit": "9fceb02d0ae598e95dc970b74767f19372d61af8", "paths": [], "submodules": "none" },
+        "image": { "ref": "ghcr.io/ore/runner-base:ubuntu-24.04", "digest": "sha256:4f2a0c7b6d9e1a3c5b8f7e6d4c2a1b0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b" },
+        "actions": [
+          { "ref": "actions/checkout@v4", "repository": "actions/checkout", "sha": "11bd71901bbe5b1630ceea73d27597364c9af683", "resolution": "tag-mutable-resolved", "vendored_digest": "sha256:1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b" },
+          { "ref": "actions/setup-go@v5", "repository": "actions/setup-go", "sha": "0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32", "resolution": "tag-mutable-resolved" }
+        ],
+        "params": { "go-version": "1.25" },
+        "secrets": [],
+        "caches": [ { "key": "go-mod-sha256:abcd", "restore_keys": ["go-mod-"], "paths": ["~/go/pkg/mod"], "scope": "internal" } ]
+      },
+      "steps": [
+        { "uses": "actions/checkout@v4" },
+        { "uses": "actions/setup-go@v5", "with": { "go-version": "1.25" } },
+        { "run": "go test ./..." }
+      ],
+      "executor": { "kind": "gvisor", "os": "linux", "arch": "x64", "size": "m", "egress": { "mode": "allow-list", "allow": ["proxy.golang.org", "sum.golang.org"] } },
+      "outputs": { "attestations": ["test-results"], "summary": true },
+      "permissions": { "contents": "read" },
+      "content_hash": "sha256:7c0e1f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6"
+    }
+  ],
+  "source": { "frontend": "actions-yaml", "path": ".github/workflows/ci.yml", "compiler_version": "0.0.0-blueprint", "divergences": [] }
+}

@@ -1,0 +1,1 @@
+# internal/connect — apps and installation tokens, MCP server, safe-outputs gateway, webhook delivery (Standard Webhooks), SARIF ingest, OpenTelemetry export, SCIM, plugin host (Phase 3). See docs/05 and ADR 0009.

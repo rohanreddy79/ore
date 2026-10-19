@@ -1,0 +1,1 @@
+# runner — the Ore runner and the Runner Protocol implementation (Apache-2.0): registration, lease, job manifest, log streaming, artifacts, scoped cache, heartbeat, OIDC and secrets channels. Executors: compatibility (Docker/gVisor/host, Phase 1), microVM (Firecracker, Phase 2). Customer-owned runners are free forever (GOVERNANCE.md §6).

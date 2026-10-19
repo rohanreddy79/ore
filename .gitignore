@@ -1,0 +1,34 @@
+# binaries and build output
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+
+# Go
+/vendor/
+coverage.*
+
+# Node / UI
+node_modules/
+ui/dist/
+ui/.svelte-kit/
+ui/.next/
+.pnpm-store/
+
+# environment and local state
+.env
+.env.*
+!.env.example
+*.local
+/data/
+/.ore/
+
+# editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# local server data
+/ore-data/

@@ -1,0 +1,36 @@
+# Lesson manifest v0 — see docs/06-learning-system.md §3 and ADR 0010.
+# A lesson is a template plus a lesson pipeline (assert / advance / hint tasks)
+# that runs on the learner's own repository. Four steps or fewer, one real artifact.
+id: git-and-forge/your-first-change
+version: 0.1.0
+track: 1-git-and-forge
+title_key: title                 # localized in steps/<lang>.md front matter
+estimated_minutes: 30
+prerequisites: []
+artifact: a merged change in your own repository
+exam_objectives:                 # external currency for the credential
+  - github-foundations: "Introduction to Git; Working with GitHub repositories; Collaboration features"
+  - gitlab-git-associate: "Basic Git workflow"
+mode: in_place                   # in_place | ephemeral_fork | scratch_repository
+languages: [en, hi, bn, pt-BR, id, es, ar, sw, vi, zh-Hans, ja]   # shipped when ≥95% translated and reviewed
+quota_class: learning            # never competes with production CI
+steps:
+  - id: 1-clone-and-branch
+    assert:
+      query: "ref exists in repo matching 'refs/heads/learn/first-change-*' created by learner"
+    hint_after_failures: 2
+  - id: 2-commit-and-push
+    assert:
+      query: "ref learn/first-change-* has ≥1 commit authored by learner that touches learn/hello.md"
+    hint_after_failures: 2
+  - id: 3-open-a-change
+    assert:
+      query: "change exists with source ref learn/first-change-* and target repo default branch"
+    hint_after_failures: 1
+  - id: 4-merge-it
+    assert:
+      query: "change from step 3 is merged and the pipeline on the merge commit is green"
+    hint_after_failures: 1
+on_complete:
+  credential: track-1-progress          # Open Badges 3.0 evidence: the merged change id
+  cleanup: delete ref learn/first-change-*, remove learn/ directory via a follow-up change
