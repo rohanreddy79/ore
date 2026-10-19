@@ -708,7 +708,7 @@ func (e *AssertEnv) count(x *AssertExpr) (int, string, error) {
 				continue
 			}
 			var kind, id string
-			err := e.DB.QueryRow(e.Ctx, `SELECT actor_kind, actor_id FROM ref_updates WHERE repo_id = ? AND ref = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`, e.Repo.ID, ref).Scan(&kind, &id)
+			err := e.DB.QueryRow(e.Ctx, `SELECT actor_kind, actor_id FROM ref_updates WHERE repo_id = ? AND ref = ? ORDER BY created_at DESC, id DESC LIMIT 1`, e.Repo.ID, ref).Scan(&kind, &id)
 			if err != nil {
 				details = append(details, ref+": no recorded push")
 				continue
