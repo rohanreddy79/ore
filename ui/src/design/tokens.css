@@ -1,0 +1,268 @@
+/* Ore design tokens. One set; light and dark are the same scale with different
+   values. Everything in the app reads these variables; nothing hard-codes a
+   color. See ui/src/design/README.md. */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces: warm neutrals (paper and graphite), not blue-grey. */
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-2: #f1efeb;
+  --surface-3: #e9e6e0;
+  --surface-raised: #ffffff;
+  --overlay: rgba(27, 26, 23, 0.48);
+  --border: #e0dcd4;
+  --border-strong: #c8c3b9;
+  --border-focus: #c2410c;
+
+  /* Text. Contrast against --bg and --surface is at least 4.5:1 for fg and
+     fg-muted, 3:1 for fg-subtle (decorative only). */
+  --fg: #1b1a17;
+  --fg-muted: #5c574f;
+  --fg-subtle: #837d73;
+  --fg-on-accent: #ffffff;
+  --link: #1a56c9;
+
+  /* Accent: copper, the metal the forge pours. */
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-soft: #fbe8dc;
+  --accent-fg: #9a3412;
+
+  /* Semantics. */
+  --ok: #15803d;
+  --ok-soft: #dcfce7;
+  --ok-fg: #166534;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --danger-fg: #991b1b;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --warn-fg: #92400e;
+  --info: #1d4ed8;
+  --info-soft: #dbeafe;
+  --info-fg: #1e40af;
+  --agent: #6d28d9;
+  --agent-soft: #ede9fe;
+  --agent-fg: #5b21b6;
+  --bot: #475569;
+  --bot-soft: #e2e8f0;
+  --bot-fg: #334155;
+
+  /* Diffs. */
+  --diff-add-bg: #e8f7ec;
+  --diff-add-gutter: #cfeed7;
+  --diff-add-word: #abecbb;
+  --diff-del-bg: #fdeceb;
+  --diff-del-gutter: #f7d3d1;
+  --diff-del-word: #ffb9b5;
+  --diff-hunk-bg: #eef1f8;
+  --diff-hunk-fg: #4a5a86;
+  --diff-gutter-fg: #8a847a;
+  --diff-agent-bar: #8b5cf6;
+
+  /* Code highlighting (lezer tags). */
+  --code-keyword: #a21caf;
+  --code-string: #0f766e;
+  --code-number: #b45309;
+  --code-comment: #7a756c;
+  --code-name: #1b1a17;
+  --code-def: #1d4ed8;
+  --code-type: #0e7490;
+  --code-prop: #7c2d12;
+  --code-op: #4b5563;
+  --code-meta: #6b7280;
+  --code-invalid: #b91c1c;
+
+  /* Type. System stacks: no font download, no layout shift. */
+  --font-sans: ui-sans-serif, -apple-system, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+  --fs-0: 11px;
+  --fs-1: 12px;
+  --fs-2: 13px;
+  --fs-3: 14px;
+  --fs-4: 16px;
+  --fs-5: 20px;
+  --fs-6: 24px;
+  --fs-7: 32px;
+  --lh-tight: 1.25;
+  --lh: 1.5;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  /* Spacing: 4-point grid. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* Radius. */
+  --radius-1: 4px;
+  --radius-2: 6px;
+  --radius-3: 10px;
+  --radius-full: 999px;
+
+  /* Elevation. */
+  --shadow-1: 0 1px 2px rgba(27, 26, 23, 0.06);
+  --shadow-2: 0 4px 12px rgba(27, 26, 23, 0.1), 0 1px 3px rgba(27, 26, 23, 0.08);
+  --shadow-3: 0 16px 40px rgba(27, 26, 23, 0.18), 0 2px 6px rgba(27, 26, 23, 0.1);
+
+  /* Motion. Short and purposeful; disabled under reduced motion. */
+  --motion-fast: 120ms;
+  --motion: 180ms;
+  --motion-slow: 260ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Focus ring: visible on every control, in every theme. */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--border-focus);
+
+  /* Layout. */
+  --topbar-h: 48px;
+  --content-max: 1280px;
+  --sidebar-w: 280px;
+  --gutter: 16px;
+}
+
+/* Dark theme: follows the system unless the user chose explicitly. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #121110;
+    --surface: #1b1917;
+    --surface-2: #232019;
+    --surface-3: #2c2823;
+    --surface-raised: #26231f;
+    --overlay: rgba(0, 0, 0, 0.6);
+    --border: #322e28;
+    --border-strong: #4a443c;
+    --border-focus: #fb923c;
+    --fg: #ece9e3;
+    --fg-muted: #b3ada3;
+    --fg-subtle: #837d73;
+    --fg-on-accent: #1b1a17;
+    --link: #7fb0ff;
+    --accent: #f97316;
+    --accent-hover: #fb923c;
+    --accent-soft: #3a2316;
+    --accent-fg: #fdba74;
+    --ok: #4ade80;
+    --ok-soft: #14301f;
+    --ok-fg: #86efac;
+    --danger: #f87171;
+    --danger-soft: #3b1a1a;
+    --danger-fg: #fca5a5;
+    --warn: #fbbf24;
+    --warn-soft: #3a2a0c;
+    --warn-fg: #fcd34d;
+    --info: #60a5fa;
+    --info-soft: #172a4a;
+    --info-fg: #93c5fd;
+    --agent: #a78bfa;
+    --agent-soft: #2a1f47;
+    --agent-fg: #c4b5fd;
+    --bot: #94a3b8;
+    --bot-soft: #1f2937;
+    --bot-fg: #cbd5e1;
+    --diff-add-bg: #15291c;
+    --diff-add-gutter: #1c3a26;
+    --diff-add-word: #2a5a38;
+    --diff-del-bg: #331a1a;
+    --diff-del-gutter: #472222;
+    --diff-del-word: #6a2e2e;
+    --diff-hunk-bg: #1b2233;
+    --diff-hunk-fg: #94a3c8;
+    --diff-gutter-fg: #7a746a;
+    --diff-agent-bar: #a78bfa;
+    --code-keyword: #e879f9;
+    --code-string: #5eead4;
+    --code-number: #fbbf24;
+    --code-comment: #8a847a;
+    --code-name: #ece9e3;
+    --code-def: #93c5fd;
+    --code-type: #67e8f9;
+    --code-prop: #fdba74;
+    --code-op: #cbd5e1;
+    --code-meta: #9ca3af;
+    --code-invalid: #f87171;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #121110;
+  --surface: #1b1917;
+  --surface-2: #232019;
+  --surface-3: #2c2823;
+  --surface-raised: #26231f;
+  --overlay: rgba(0, 0, 0, 0.6);
+  --border: #322e28;
+  --border-strong: #4a443c;
+  --border-focus: #fb923c;
+  --fg: #ece9e3;
+  --fg-muted: #b3ada3;
+  --fg-subtle: #837d73;
+  --fg-on-accent: #1b1a17;
+  --link: #7fb0ff;
+  --accent: #f97316;
+  --accent-hover: #fb923c;
+  --accent-soft: #3a2316;
+  --accent-fg: #fdba74;
+  --ok: #4ade80;
+  --ok-soft: #14301f;
+  --ok-fg: #86efac;
+  --danger: #f87171;
+  --danger-soft: #3b1a1a;
+  --danger-fg: #fca5a5;
+  --warn: #fbbf24;
+  --warn-soft: #3a2a0c;
+  --warn-fg: #fcd34d;
+  --info: #60a5fa;
+  --info-soft: #172a4a;
+  --info-fg: #93c5fd;
+  --agent: #a78bfa;
+  --agent-soft: #2a1f47;
+  --agent-fg: #c4b5fd;
+  --bot: #94a3b8;
+  --bot-soft: #1f2937;
+  --bot-fg: #cbd5e1;
+  --diff-add-bg: #15291c;
+  --diff-add-gutter: #1c3a26;
+  --diff-add-word: #2a5a38;
+  --diff-del-bg: #331a1a;
+  --diff-del-gutter: #472222;
+  --diff-del-word: #6a2e2e;
+  --diff-hunk-bg: #1b2233;
+  --diff-hunk-fg: #94a3c8;
+  --diff-gutter-fg: #7a746a;
+  --diff-agent-bar: #a78bfa;
+  --code-keyword: #e879f9;
+  --code-string: #5eead4;
+  --code-number: #fbbf24;
+  --code-comment: #8a847a;
+  --code-name: #ece9e3;
+  --code-def: #93c5fd;
+  --code-type: #67e8f9;
+  --code-prop: #fdba74;
+  --code-op: #cbd5e1;
+  --code-meta: #9ca3af;
+  --code-invalid: #f87171;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion: 0ms;
+    --motion-slow: 0ms;
+  }
+}

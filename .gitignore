@@ -32,3 +32,10 @@ ui/.next/
 
 # local server data
 /ore-data/
+
+# web app build output (embedded by internal/webapp; built by `npm run build` in ui/)
+internal/webapp/dist/*
+!internal/webapp/dist/.gitkeep
+ui/test-results/
+ui/playwright-report/
+ui/e2e/.auth/
