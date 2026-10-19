@@ -31,6 +31,7 @@ import (
 	_ "github.com/orevcs/ore/internal/agent/fleet"
 	_ "github.com/orevcs/ore/internal/connect/gateway"
 	_ "github.com/orevcs/ore/internal/connect/mcp"
+	_ "github.com/orevcs/ore/internal/connect/webhooks"
 	_ "github.com/orevcs/ore/internal/delivery/environments"
 	_ "github.com/orevcs/ore/internal/fpi/github"
 	_ "github.com/orevcs/ore/internal/identity"

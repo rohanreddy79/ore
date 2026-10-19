@@ -183,6 +183,21 @@ func (d *DB) Close() error {
 // Dialect is "sqlite" or "postgres".
 func (d *DB) Dialect() string { return d.dialect }
 
+// TableExists reports whether a table exists on either dialect; feature
+// packages use it to degrade gracefully when another slice's migration is
+// absent. On Postgres it is scoped to the current schema.
+func (d *DB) TableExists(ctx context.Context, name string) bool {
+	var n int
+	q := `SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = ?`
+	if d.dialect == "postgres" {
+		q = `SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = ?`
+	}
+	if err := d.QueryRow(ctx, q, name).Scan(&n); err != nil {
+		return false
+	}
+	return n > 0
+}
+
 // Target describes the database for humans, with any password redacted.
 func (d *DB) Target() string {
 	if d.dialect == DialectPostgres {

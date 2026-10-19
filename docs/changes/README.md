@@ -45,3 +45,7 @@ Routes: every slice mounts under its own prefix (`/api/v0/fleet/`, `/api/v0/lear
 | Web app: a TypeScript single-page application with a design system, served by the binary; the primary UI | `slice/webapp` | `ui/` (the app), `internal/webapp/` (embeds the built app and mounts it under `/app/`; no edits to `internal/web/`) | none | `webapp` |
 
 The server-rendered pages from the "UI v1" slice stay as the no-JavaScript fallback and keep providing the SSE and diff endpoints the app consumes.
+
+## Wave 2 (merged into `main` on 2026-10-19)
+
+All six slices merged cleanly; two integration fixes followed: the `connect/webhooks` blank import in `cmd/ore/main.go` (the webhooks slice could not edit that file), and a dialect-aware `ledger.DB.TableExists` replacing a `sqlite_master` query in the UI that failed on Postgres. `scripts/e2e.sh` (SQLite, Docker demo) and `scripts/test-postgres.sh` pass on the merged `main`. Hand-over notes: `agent-fleet.md`, `learn.md`, `ui-v1.md`, `webhooks.md`, `ops.md`, `github-import.md`. The web app (`slice/webapp`) arrives separately as a pull request.

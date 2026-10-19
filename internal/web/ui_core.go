@@ -508,7 +508,5 @@ func (s *Server) latestSeq(ctx context.Context) int64 {
 
 // tableExists reports whether another slice's table is present (its migration ran).
 func (s *Server) tableExists(ctx context.Context, name string) bool {
-	var n int
-	s.DB.QueryRow(ctx, `SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&n)
-	return n > 0
+	return s.DB.TableExists(ctx, name)
 }
